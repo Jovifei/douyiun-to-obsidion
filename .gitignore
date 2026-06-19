@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Build artifacts
+build/
+dist/
+
+# Runtime
+*.tmp
+*.bak
+*.swp
+
+# Credentials (never commit)
+.env
+.env.*
+!.env.example
+cookies.txt
+secrets/
+*.key
+*.pem
+
+# Logs
+logs/
+*.log
+
+# Local SQLite
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# OpenClaw local state
+.openclaw/
+
+# Comet local handoff (already in openspec/changes/*/comet/handoff/ - keep those)
+# but exclude any temp scratch
+.comet/scratch/

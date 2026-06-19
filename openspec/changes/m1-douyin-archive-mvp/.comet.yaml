@@ -1,0 +1,16 @@
+workflow: full
+phase: build
+build_mode: subagent-driven-development
+isolation: worktree
+verify_mode: null
+base_ref: 2d28ae12fb0ef4bb44475d18bacf2943feab7283
+design_doc: docs/superpowers/specs/2026-06-19-m1-douyin-archive-design.md
+plan: docs/superpowers/plans/2026-06-19-m1-douyin-archive.md
+verify_result: pending
+verification_report: null
+branch_status: pending
+created_at: 2026-06-19
+verified_at: null
+archived: false
+handoff_context: openspec/changes/m1-douyin-archive-mvp/.comet/handoff/design-context.json
+handoff_hash: aaa2b85cca3e766ffe8f92b998a337ce6154131e22ea4a0253aea4d1f892f622

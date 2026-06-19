@@ -1,0 +1,18 @@
+{
+  "change": "m1-douyin-archive-mvp",
+  "phase": "design",
+  "mode": "compact",
+  "canonical_spec": "openspec",
+  "generated_by": "comet-handoff.sh",
+  "context_hash": "aaa2b85cca3e766ffe8f92b998a337ce6154131e22ea4a0253aea4d1f892f622",
+  "files": [
+    { "path": "openspec/changes/m1-douyin-archive-mvp/proposal.md", "sha256": "b83f4a85bae78dcca0515ed7cfd4d4449fbdbbf5ac91b99e794d82088aecf1ad" },
+    { "path": "openspec/changes/m1-douyin-archive-mvp/design.md", "sha256": "ff857cb4f2ff7c1c38024780add365863b1a8a3f1254b5eb31eb2e48e4c8db0d" },
+    { "path": "openspec/changes/m1-douyin-archive-mvp/tasks.md", "sha256": "3ea15fd295f98f6658633ec1d27ea0a2e13c9a8249e6648e6c56f94328e03750" },
+    { "path": "openspec/changes/m1-douyin-archive-mvp/specs/bishu-feishu-bridge/spec.md", "sha256": "27fcca947e57b657668a43e7d8a9d78a86b20a37fff5f3f9b97cf53edf750dd2" },
+    { "path": "openspec/changes/m1-douyin-archive-mvp/specs/douyin-extraction/spec.md", "sha256": "df62fe82178fb75cd765a120dfbcfd259ea346ce48d01a83a9608dae376b388e" },
+    { "path": "openspec/changes/m1-douyin-archive-mvp/specs/git-cold-backup/spec.md", "sha256": "c71001cff3792aa7a20250308f240478e17d697cfa54382ef84919d40e725887" },
+    { "path": "openspec/changes/m1-douyin-archive-mvp/specs/obsidian-archive-writer/spec.md", "sha256": "6f287cae97ac1fb7492a26d296fb45c3552cbce9f34179bce503b9aad818d5ed" },
+    { "path": "openspec/changes/m1-douyin-archive-mvp/specs/task-queue-pipeline/spec.md", "sha256": "a42a34af4cfbbf5166e2c6a4c83a84f8278a4a7aef25d6bdce3a22fb4cfadc62" }
+  ]
+}
