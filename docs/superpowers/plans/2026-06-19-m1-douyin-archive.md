@@ -1,7 +1,7 @@
 ---
 change: m1-douyin-archive-mvp
 design-doc: docs/superpowers/specs/2026-06-19-m1-douyin-archive-design.md
-base-ref: 2d28ae12fb0ef4bb44475d18bacf2943feab7283
+base-ref: ee474ea6643a27325dc4d72b3ee2bb2ae3ead611
 ---
 
 # M1 抖音知识视频归档系统 Implementation Plan
