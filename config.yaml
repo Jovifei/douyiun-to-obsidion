@@ -1,0 +1,23 @@
+downloader:
+  cookies_path: ''
+  douk_path: ''
+  temp_dir: E:\project\douyin_to_obsidian\data\tmp
+  yt_dlp_retries: 3
+git_backup:
+  cron_time: 03:00
+  remote_url: ''
+  vault_root: E:\AI_Tools\Obsidian\data\notes-personal
+logging:
+  dir: E:\project\douyin_to_obsidian\logs
+  level: INFO
+  rotation: daily
+queue:
+  db_path: data/queue.sqlite3
+  zombie_timeout_minutes: 30
+server:
+  host: 127.0.0.1
+  port: 8765
+vault:
+  attachments_subdir: attachments/douyin
+  inbox_subdir: inbox/douyin
+  root: E:\AI_Tools\Obsidian\data\notes-personal

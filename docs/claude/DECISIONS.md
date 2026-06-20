@@ -114,7 +114,7 @@ main (JJ_bot, type: route)   ← 入口路由
 
 | 候选名 | 取意 | 适合度 |
 |--------|------|--------|
-| `bishu` (秘书省) | 隋唐三省之一，掌图书典籍 | ⭐⭐⭐⭐⭐ 最贴合"知识归档"职能 |
+| `douyin` (抖音) | 隋唐三省之一，掌图书典籍 | ⭐⭐⭐⭐⭐ 最贴合"知识归档"职能 |
 | `dianji` (典籍 / 典记) | 掌典章、文献的官 | ⭐⭐⭐⭐ 直白 |
 | `qiju` (起居注) | 记录皇帝言行的史官 | ⭐⭐⭐ 偏"记录"，弱"采集" |
 | `taishi` (太史) | 掌天文+史书 | ⭐⭐ 偏天文 |
@@ -122,7 +122,7 @@ main (JJ_bot, type: route)   ← 入口路由
 | `gongbu` (工部 - 复用) | 当作"工程类工具"挂在工部下 | ⭐⭐ 可，但稀释工部职能 |
 | `douyin_archiver` | 直白英文 | ⭐ 与现有命名风格不一致 |
 
-**lead 推荐**：`bishu`（秘书省）—— 历史上秘书省**主管图书典籍的采集、保管、整理**，与本项目"采集抖音知识视频→整理→入 Obsidian"职能高度对应；命名风格也与现有 12 agent 一致。
+**lead 推荐**：`douyin`（抖音）—— 历史上抖音**主管图书典籍的采集、保管、整理**，与本项目"采集抖音知识视频→整理→入 Obsidian"职能高度对应；命名风格也与现有 12 agent 一致。
 
 ---
 
@@ -166,9 +166,9 @@ main (JJ_bot, type: route)   ← 入口路由
 
 ### A14 — 新 agent 名称
 
-- **决策**：Jovi 将自行在 openclaw 新建 agent。**lead 推荐名称 `bishu`（秘书省）**，备选 `dianji`（典籍）。
+- **决策**：Jovi 将自行在 openclaw 新建 agent。**lead 推荐名称 `douyin`（抖音）**，备选 `dianji`（典籍）。
 - **职能定位**：仅做"接收抖音 URL → POST 到本地解析服务 → 处理状态回帖"。
-- **路由**：在 `main (JJ_bot)` 路由规则前加一条：消息含 `v.douyin.com` / `iesdouyin.com` / 抖音分享文案 → 转给 `bishu`。
+- **路由**：在 `main (JJ_bot)` 路由规则前加一条：消息含 `v.douyin.com` / `iesdouyin.com` / 抖音分享文案 → 转给 `douyin`。
 
 ### A15 — 模型选型
 
@@ -313,7 +313,8 @@ vision_model:
 | 2026-06-19 | A6 vault 路径 | 待定 | `E:\AI_Tools\Obsidian\data\notes-personal` | Jovi 拍板 + 文件系统验证 |
 | 2026-06-19 | A7 同步策略 | Syncthing 主 / iCloud 主摇摆 | M1 Git 冷备；Android/PC 可 Syncthing；iOS 可 Obsidian Sync/iCloud/Working Copy；OneDrive 候选 | 本轮联网校验 + Jovi 当前回答 |
 | 2026-06-19 | A8 Whisper M1 | 不装 | 装好默认关闭 | 避免 M2 重折腾环境 |
-| 2026-06-19 | A14 新 agent 名 | – | `bishu`（推荐，Jovi 自行新建） | Jovi 同意 |
+| 2026-06-19 | A14 新 agent 名 | – | `douyin`（推荐，Jovi 自行新建） | Jovi 同意 |
 | 2026-06-19 | A15 当前模型 | 待定 | MiMo + 抽象层支持任意切换 | Jovi 拍板 |
 | 2026-06-19 | D1 接口形态 | – | FastAPI 127.0.0.1:8765 | 由 A1+A2 推出 |
 | 2026-06-19 | D4 模型接口表 | – | OpenAI-compatible 抽象 | 支持 A15 切换需求 |
+| 2026-06-20 | OQ-4 Git 远程仓库 | 待定 | GitHub `https://github.com/Jovifei/douyiun-to-obsidion.git`（main 分支）| Jovi 创建 GitHub 仓库，M1 代码已推 main |
