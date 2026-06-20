@@ -27,7 +27,9 @@ from src.utils.cookie_probe import probe_cookie
 from src.utils.logging_config import configure_logging
 
 # structlog 配置移到 configure_logging() 函数中（Task 11 reviewer 指出）
-logger = structlog.get_logger(__name__)
+# logger 延迟获取：configure_logging() 先跑再用 logger，否则 filter_by_level 报 NoneType
+def _get_logger():
+    return structlog.get_logger(__name__)
 
 
 def process_task(conn, task: dict, config: dict) -> None:
@@ -40,7 +42,7 @@ def process_task(conn, task: dict, config: dict) -> None:
     source_url = task["source_url"]
     correlation_id = task.get("correlation_id", "")
 
-    logger.info(
+    _get_logger().info(
         "task_processing_start",
         task_id=task_id,
         correlation_id=correlation_id,
@@ -51,11 +53,13 @@ def process_task(conn, task: dict, config: dict) -> None:
 
     try:
         # ── fetching 阶段 ──────────────────────────────────────────────
-        canonical_url = resolve_url(source_url)
-        logger.info(
+        resolved = resolve_url(source_url)
+        canonical_url = resolved["canonical_url"]
+        _get_logger().info(
             "url_resolved",
             task_id=task_id,
             canonical_url=canonical_url,
+            source_url_type=resolved["source_url_type"],
             correlation_id=correlation_id,
         )
 
@@ -141,7 +145,7 @@ def process_task(conn, task: dict, config: dict) -> None:
             from_status="writing",
             correlation_id=correlation_id,
         )
-        logger.info(
+        _get_logger().info(
             "task_processing_done",
             task_id=task_id,
             correlation_id=correlation_id,
@@ -170,12 +174,12 @@ def _download_with_fallback(
                 video_id=video_id,
                 canonical_url=canonical_url,
                 out_dir=tmp_dir,
-                cookies_path=config.get("cookies_path") or None,
+                cookies_path=config.get("downloader", {}).get("cookies_path") or None,
             )
             return result
         except Exception as e:
             last_error = e
-            logger.warning(
+            _get_logger().warning(
                 "ytdlp_attempt_failed",
                 attempt=attempt + 1,
                 max_retries=max_retries,
@@ -185,7 +189,7 @@ def _download_with_fallback(
 
     # DouK 兜底
     if douk_path:
-        logger.info(
+        _get_logger().info(
             "douk_fallback_triggered",
             correlation_id=correlation_id,
         )
@@ -198,7 +202,7 @@ def _download_with_fallback(
             )
             return result
         except Exception as e:
-            logger.error(
+            _get_logger().error(
                 "douk_fallback_failed",
                 error=str(e),
                 correlation_id=correlation_id,
@@ -215,7 +219,7 @@ def _handle_task_failure(conn, task_id: int, correlation_id: str, error: Excepti
     # 使用 classify_exception 替代内联字符串匹配
     error_code = classify_exception(error).value
 
-    logger.error(
+    _get_logger().error(
         "task_processing_failed",
         task_id=task_id,
         error_code=error_code,
@@ -263,19 +267,19 @@ def run_forever(db_path, config: dict) -> None:
     configure_logging(config, module_name="scheduler")
 
     conn = db.init_db(db_path)
-    logger.info("scheduler_started", db_path=str(db_path))
+    _get_logger().info("scheduler_started", db_path=str(db_path))
 
     # cookie 探活（启动时用 HTTP 探活，不只是文件存在检查）
-    cookies_path = config.get("cookies_path", "")
+    cookies_path = config.get("downloader", {}).get("cookies_path", "")
     if cookies_path:
         test_url = config.get("cookie_test_url", "https://v.douyin.com/test/")
         probe_ok = probe_cookie(cookies_path, test_url)
-        logger.info("cookies_probe_result", path=cookies_path, ok=probe_ok)
+        _get_logger().info("cookies_probe_result", path=cookies_path, ok=probe_ok)
 
     # 复活 zombie 任务
     zombie_count = db.reclaim_zombie_tasks(conn, timeout_minutes=config.get("zombie_timeout_minutes", 30))
     if zombie_count > 0:
-        logger.info("zombies_reclaimed", count=zombie_count)
+        _get_logger().info("zombies_reclaimed", count=zombie_count)
 
     try:
         while True:
@@ -285,6 +289,6 @@ def run_forever(db_path, config: dict) -> None:
                 continue
             process_task(conn, task, config)
     except KeyboardInterrupt:
-        logger.info("scheduler_stopped")
+        _get_logger().info("scheduler_stopped")
     finally:
         conn.close()
