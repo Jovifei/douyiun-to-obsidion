@@ -42,7 +42,7 @@ def download_video(
 ) -> dict:
     """Download video + subtitles to out_dir, return result dict.
 
-    Raises: NoSubtitleError, yt_dlp.utils.DownloadError.
+    Raises: NoSubtitleError, yt_dlp.utils.DownloadError, FileNotFoundError.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
     outtmpl = str(out_dir / f"{video_id}.%(ext)s")
