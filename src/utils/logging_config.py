@@ -29,13 +29,19 @@ def configure_logging(config: dict, module_name: str = "default") -> None:
     log_subdir = log_dir / module_name
     log_subdir.mkdir(parents=True, exist_ok=True)
 
-    # 配置 stdlib handler
+    # 配置 stdlib handler — 活跃日志文件名 = {YYYY-MM-DD}.log（spec 要求）
+    # TimedRotatingFileHandler 的 baseFilename 用当天日期，午夜轮转时自动更新
+    from datetime import datetime
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    log_file = str(log_subdir / f"{today_str}.log")
     handler = TimedRotatingFileHandler(
-        filename=str(log_subdir / f"{module_name}.log"),
+        filename=log_file,
         when=when,
         backupCount=30,
         encoding="utf-8",
     )
+    # 午夜轮转后新文件名也带日期（suffix 是空，baseFilename 每次轮转时重新计算）
+    handler.suffix = "%Y-%m-%d"
     handler.setLevel(level)
 
     # 配置 structlog — 使用 ProcessorFormatter 传递额外参数
