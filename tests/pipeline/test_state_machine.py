@@ -18,6 +18,7 @@ import pytest
 
 from src.pipeline.state_machine import (
     VALID_TRANSITIONS,
+    IllegalTransitionError,
     validate_transition,
     transition,
 )
@@ -171,6 +172,30 @@ class TestTransitionLogsStateTransition:
 
 
 # ── Test 8: transition 带 error_code ────────────────────────────────────
+
+
+class TestTransitionRaisesIllegalTransitionError:
+    """transition() 应在非法转移时抛 IllegalTransitionError（而非 ValueError）"""
+
+    @patch("src.pipeline.state_machine.db")
+    def test_done_to_pending_raises(self, mock_db):
+        mock_conn = MagicMock()
+        mock_conn.execute.return_value.fetchone.return_value = {"status": "done"}
+
+        with pytest.raises(IllegalTransitionError, match="illegal.*done.*pending"):
+            transition(mock_conn, task_id=1, to_status="pending")
+
+    @patch("src.pipeline.state_machine.db")
+    def test_pending_to_writing_raises(self, mock_db):
+        mock_conn = MagicMock()
+        mock_conn.execute.return_value.fetchone.return_value = {"status": "pending"}
+
+        with pytest.raises(IllegalTransitionError, match="illegal.*pending.*writing"):
+            transition(mock_conn, task_id=1, to_status="writing")
+
+    def test_exception_is_subclass_of_value_error(self):
+        """IllegalTransitionError 是 ValueError 子类，调用方 catch ValueError 仍能接住"""
+        assert issubclass(IllegalTransitionError, ValueError)
 
 
 class TestTransitionWithErrorCode:

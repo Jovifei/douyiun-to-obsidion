@@ -1,7 +1,7 @@
 """Pipeline state machine — 4 状态合法转移校验 + 审计日志。
 
 D-4 v2: pending → fetching → writing → done | failed
-终态 done / failed 不可逆，非法转移抛 ValueError。
+终态 done / failed 不可逆，非法转移抛 IllegalTransitionError。
 
 Spec ref: specs/task-queue-pipeline/spec.md Requirement "状态机" + "状态转移审计日志"
 """
@@ -12,9 +12,15 @@ from src.queue import db
 
 logger = logging.getLogger(__name__)
 
+
+class IllegalTransitionError(ValueError):
+    """非法状态转移（如 done→pending、pending→writing）。"""
+    pass
+
+
 # source of truth for valid transitions
 VALID_TRANSITIONS: dict[str, set[str]] = {
-    "pending": {"fetching", "failed"},
+    "pending": {"fetching", "failed"},  # pending→failed 是有意扩展：URL 校验失败在 fetch 之前就能判
     "fetching": {"writing", "failed"},
     "writing": {"done", "failed"},
     "done": set(),
@@ -59,7 +65,7 @@ def transition(
 
     # 校验合法转移
     if not validate_transition(from_status, to_status):
-        raise ValueError(
+        raise IllegalTransitionError(
             f"illegal transition {from_status} -> {to_status}"
         )
 
