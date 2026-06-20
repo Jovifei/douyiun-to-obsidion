@@ -25,9 +25,14 @@ _VIDEO_ID_FROM_CANONICAL = re.compile(r"/video/(\d+)")
 
 def _follow_redirect(url: str) -> str:
     """跟随短链 302，返回最终 canonical URL。"""
-    with httpx.Client(follow_redirects=True, timeout=10.0) as client:
-        resp = client.get(url)
-        return str(resp.url)
+    try:
+        with httpx.Client(
+            follow_redirects=True, timeout=10.0, max_redirects=5
+        ) as client:
+            resp = client.get(url)
+            return str(resp.url)
+    except httpx.RequestError as e:
+        raise ResolverError(f"redirect_failed: {e}") from e
 
 
 def _extract_video_id(canonical: str) -> Optional[str]:

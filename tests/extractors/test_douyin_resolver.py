@@ -5,6 +5,7 @@ Spec ref: specs/douyin-extraction/spec.md
 - Scenario: 分享文案解析
 - Scenario: 非抖音 URL
 """
+import httpx
 import pytest
 
 from src.extractors.douyin_resolver import resolve_url, ResolverError
@@ -61,3 +62,31 @@ def test_non_douyin_url_raises():
     with pytest.raises(ResolverError) as exc:
         resolve_url("https://www.bilibili.com/video/BVxxx")
     assert "not_douyin_url" in str(exc.value)
+
+
+def test_redirect_network_error_wrapped_as_resolver_error(monkeypatch):
+    """WHEN 短链 302 跟随时 httpx.ConnectError
+    THEN 抛 ResolverError 且消息含 'redirect_failed'。"""
+
+    def fake_get_raises(_url):
+        raise httpx.ConnectError("connection refused")
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def get(self, url):
+            return fake_get_raises(url)
+
+    monkeypatch.setattr(
+        "src.extractors.douyin_resolver.httpx.Client", FakeClient
+    )
+    with pytest.raises(ResolverError) as exc:
+        resolve_url("https://v.douyin.com/iAbCdEf/")
+    assert "redirect_failed" in str(exc.value)
