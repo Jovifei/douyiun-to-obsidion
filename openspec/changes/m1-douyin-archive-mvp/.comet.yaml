@@ -3,7 +3,7 @@ phase: build
 build_mode: subagent-driven-development
 isolation: worktree
 verify_mode: null
-base_ref: 2d28ae12fb0ef4bb44475d18bacf2943feab7283
+base_ref: ee474ea6643a27325dc4d72b3ee2bb2ae3ead611
 design_doc: docs/superpowers/specs/2026-06-19-m1-douyin-archive-design.md
 plan: docs/superpowers/plans/2026-06-19-m1-douyin-archive.md
 verify_result: pending

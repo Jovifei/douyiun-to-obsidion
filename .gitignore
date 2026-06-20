@@ -54,3 +54,6 @@ Thumbs.db
 # Comet local handoff (already in openspec/changes/*/comet/handoff/ - keep those)
 # but exclude any temp scratch
 .comet/scratch/
+
+# Runtime data (SQLite queue, tmp files)
+data/

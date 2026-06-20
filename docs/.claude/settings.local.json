@@ -135,7 +135,8 @@
       "Bash(bash /c/Users/Admin/.cc-switch/skills/comet/scripts/comet-state.sh set m1-douyin-archive-mvp build_mode subagent-driven-development)",
       "Bash(bash /c/Users/Admin/.cc-switch/skills/comet/scripts/comet-state.sh set m1-douyin-archive-mvp tdd_mode tdd)",
       "Bash(bash /c/Users/Admin/.cc-switch/skills/comet/scripts/comet-state.sh)",
-      "Read(//c/Users/Admin/.cc-switch/skills/comet/scripts/**)"
+      "Read(//c/Users/Admin/.cc-switch/skills/comet/scripts/**)",
+      "Skill(superpowers:using-git-worktrees)"
     ]
   }
 }

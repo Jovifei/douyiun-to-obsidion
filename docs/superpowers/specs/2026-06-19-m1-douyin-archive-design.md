@@ -96,7 +96,7 @@ CREATE INDEX idx_task_status_claimed ON task(status, claimed_at);
 ```
 
 dequeue 用单条原子 SQL `UPDATE ... WHERE id=(SELECT...) RETURNING *`。
-启动钩子扫 `processing + claimed_at < now()-30min` 全部回 pending（zombie 复活）。
+启动钩子扫 `status IN ('fetching','writing') AND claimed_at < now()-30min` 全部回 pending（zombie 复活，D-4 v2 修订：删除 processing 状态）。
 
 ### D-5: frontmatter schema 含 M2/M3 字段占位
 

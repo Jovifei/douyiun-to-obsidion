@@ -11,6 +11,7 @@
 - [x] 验证吸收后的文档路径、引用和 todo 状态。
 - [x] 审核 `openspec/changes/m1-douyin-archive-mvp/.comet/handoff/brainstorm-summary.md` 与已生成 design/tasks 是否可进入 build。
 - [x] 复审 Comet design v2、tasks v2、5 份 OpenSpec specs 与端口替换结果，判断是否可以启动 build 配置。
+- [x] 审核当前文件夹实现是否满足 Jovi 原始需求与 M1 验收标准。
 
 ## 上轮文档修订计划
 
@@ -43,3 +44,4 @@
 - Comet design v2 复审结论：`phase=build` 状态正确，端口替换已验证；但 build 配置前需修正 D-3 残留 vendoring 文案，以及 task queue 的 `processing`/`fetching` 状态机不一致。
 - Comet design v2 二次复核：主要 drift 已修复；已清理 `tasks.md` 中残留的 `processing` health/zombie 文案，并修正 design 中 vendoring 删除线说明。
 - Plan-ready 复审通过：`docs/superpowers/plans/2026-06-19-m1-douyin-archive.md` header/base-ref 正确，D-3/D-4/D-9/D-10 与 OQ-1 分组已落地；3 个 plan TODO 不阻塞 Step 3。
+- 当前实现审核结论：自动化测试 174 passed、compileall 通过；但尚未满足 Jovi 原始“手机飞书/openclaw -> 本地解析 -> Obsidian 自动入库”需求，存在 scheduler 未随服务启动、scheduler URL 类型错误、配置结构不匹配、openclaw 仅模板未闭环等阻断项。
