@@ -3,7 +3,6 @@ name = "douyin-to-obsidian"
 version = "0.1.0"
 description = "抖音知识视频归档到 Obsidian -- 从收藏夹提取视频、转录字幕、AI 总结、写入 Obsidian 笔记库"
 requires-python = ">=3.11"
-readme = "README.md"
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.34.0",
@@ -21,7 +20,16 @@ dev = [
     "httpx>=0.28.0",
 ]
 
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 asyncio_mode = "auto"
 addopts = "-v --tb=short"
