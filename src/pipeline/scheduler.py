@@ -48,7 +48,7 @@ def process_task(conn, task: dict, config: dict) -> None:
         correlation_id=correlation_id,
     )
 
-    tmp_dir = Path(config.get("tmp_dir", "/tmp/douyin"))
+    tmp_dir = Path(config.get("downloader", {}).get("temp_dir", "/tmp/douyin"))
     tmp_dir.mkdir(parents=True, exist_ok=True)
 
     try:
@@ -89,7 +89,7 @@ def process_task(conn, task: dict, config: dict) -> None:
             correlation_id=correlation_id,
         )
 
-        vault_root = Path(config.get("vault_root", ""))
+        vault_root = Path(config.get("vault", {}).get("root", ""))
 
         # 读取字幕内容
         subtitle_vtt = ""
@@ -163,8 +163,8 @@ def _download_with_fallback(
     correlation_id: str,
 ) -> dict:
     """yt-dlp 重试 N 次后切 DouK 兜底。返回下载结果 dict。"""
-    max_retries = config.get("yt_dlp_retries", 3)
-    douk_path = config.get("douk_path", "")
+    max_retries = config.get("downloader", {}).get("yt_dlp_retries", 3)
+    douk_path = config.get("downloader", {}).get("douk_path", "")
 
     # yt-dlp 重试
     last_error = None
@@ -277,7 +277,7 @@ def run_forever(db_path, config: dict) -> None:
         _get_logger().info("cookies_probe_result", path=cookies_path, ok=probe_ok)
 
     # 复活 zombie 任务
-    zombie_count = db.reclaim_zombie_tasks(conn, timeout_minutes=config.get("zombie_timeout_minutes", 30))
+    zombie_count = db.reclaim_zombie_tasks(conn, timeout_minutes=config.get("queue", {}).get("zombie_timeout_minutes", 30))
     if zombie_count > 0:
         _get_logger().info("zombies_reclaimed", count=zombie_count)
 

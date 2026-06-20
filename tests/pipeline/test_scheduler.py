@@ -22,17 +22,30 @@ import pytest
 from src.queue import db
 
 
+@pytest.fixture(autouse=True)
+def _reset_structlog():
+    """每个测试前后重置 structlog 状态，确保日志文件隔离。"""
+    from src.utils.logging_config import _reset_logging
+    _reset_logging()
+    yield
+    _reset_logging()
+
+
 # ── Helpers ────────────────────────────────────────────────────────────────
 
 
 def _make_config(tmp_path: Path) -> dict:
-    """构造测试用 config dict。"""
+    """构造测试用 config dict（嵌套结构，与 config.yaml 对齐）。"""
     return {
-        "vault_root": tmp_path / "vault",
-        "tmp_dir": tmp_path / "tmp",
-        "cookies_path": "",
-        "douk_path": "",
-        "yt_dlp_retries": 3,
+        "vault": {"root": str(tmp_path / "vault")},
+        "downloader": {
+            "temp_dir": str(tmp_path / "tmp"),
+            "cookies_path": "",
+            "douk_path": "",
+            "yt_dlp_retries": 3,
+        },
+        "queue": {"db_path": str(tmp_path / "test.db"), "zombie_timeout_minutes": 30},
+        "logging": {"level": "INFO", "dir": str(tmp_path / "logs"), "rotation": "daily"},
     }
 
 
@@ -94,7 +107,7 @@ class TestRunOnceHappyPath:
     @patch("src.pipeline.scheduler.build_frontmatter", return_value={"title": "t"})
     @patch("src.pipeline.scheduler.extract_metadata", return_value={"title": "t"})
     @patch("src.pipeline.scheduler.download_video")
-    @patch("src.pipeline.scheduler.resolve_url", return_value="https://canonical.url/")
+    @patch("src.pipeline.scheduler.resolve_url", return_value={"canonical_url": "https://canonical.url/", "source_url_type": "full", "video_id": "1234567890123"})
     def test_task_status_becomes_done(
         self, mock_resolve, mock_download, mock_meta,
         mock_fm, mock_body, mock_write, tmp_path
@@ -104,7 +117,7 @@ class TestRunOnceHappyPath:
         task_id = _enqueue_task(conn)
         config = _make_config(tmp_path)
 
-        mock_download.return_value = _mock_download_result(config["tmp_dir"])
+        mock_download.return_value = _mock_download_result(Path(config["downloader"]["temp_dir"]))
         mock_write.return_value = Path("inbox/douyin/2026-06/1234567890123.md")
 
         from src.pipeline.scheduler import run_once
@@ -122,7 +135,7 @@ class TestRunOnceNoSubtitleFails:
     """test_run_once_no_subtitle_fails — subtitle_source=none → failed + error_code"""
 
     @patch("src.pipeline.scheduler.download_video")
-    @patch("src.pipeline.scheduler.resolve_url", return_value="https://canonical.url/")
+    @patch("src.pipeline.scheduler.resolve_url", return_value={"canonical_url": "https://canonical.url/", "source_url_type": "full", "video_id": "1234567890123"})
     def test_task_status_becomes_failed_no_subtitle(
         self, mock_resolve, mock_download, tmp_path
     ):
@@ -155,7 +168,7 @@ class TestRunOnceDownloadFailsTriesDouk:
     @patch("src.pipeline.scheduler.extract_metadata", return_value={"title": "t"})
     @patch("src.pipeline.scheduler.download_with_douk")
     @patch("src.pipeline.scheduler.download_video")
-    @patch("src.pipeline.scheduler.resolve_url", return_value="https://canonical.url/")
+    @patch("src.pipeline.scheduler.resolve_url", return_value={"canonical_url": "https://canonical.url/", "source_url_type": "full", "video_id": "1234567890123"})
     def test_douk_called_when_ytdlp_fails(
         self, mock_resolve, mock_ytdlp, mock_douk,
         mock_meta, mock_fm, mock_body, mock_write, tmp_path
@@ -166,10 +179,10 @@ class TestRunOnceDownloadFailsTriesDouk:
         conn = _init_conn(db_path)
         task_id = _enqueue_task(conn)
         config = _make_config(tmp_path)
-        config["douk_path"] = "/usr/bin/douk"
+        config["downloader"]["douk_path"] = "/usr/bin/douk"
 
         mock_ytdlp.side_effect = yt_dlp.utils.DownloadError("network error")
-        mock_douk.return_value = _mock_download_result(config["tmp_dir"])
+        mock_douk.return_value = _mock_download_result(Path(config["downloader"]["temp_dir"]))
         mock_douk.return_value["downloader_used"] = "douk"
 
         from src.pipeline.scheduler import run_once
@@ -188,7 +201,7 @@ class TestRunOnceDoukAlsoFails:
 
     @patch("src.pipeline.scheduler.download_with_douk")
     @patch("src.pipeline.scheduler.download_video")
-    @patch("src.pipeline.scheduler.resolve_url", return_value="https://canonical.url/")
+    @patch("src.pipeline.scheduler.resolve_url", return_value={"canonical_url": "https://canonical.url/", "source_url_type": "full", "video_id": "1234567890123"})
     def test_both_fail_task_becomes_failed(
         self, mock_resolve, mock_ytdlp, mock_douk, tmp_path
     ):
@@ -199,7 +212,7 @@ class TestRunOnceDoukAlsoFails:
         conn = _init_conn(db_path)
         task_id = _enqueue_task(conn)
         config = _make_config(tmp_path)
-        config["douk_path"] = "/usr/bin/douk"
+        config["downloader"]["douk_path"] = "/usr/bin/douk"
 
         mock_ytdlp.side_effect = yt_dlp.utils.DownloadError("network error")
         mock_douk.side_effect = DoukDownloadError("douk_failed")
@@ -227,7 +240,7 @@ class TestRunOnceDoukSuccessMetadataFallback:
     })
     @patch("src.pipeline.scheduler.download_with_douk")
     @patch("src.pipeline.scheduler.download_video")
-    @patch("src.pipeline.scheduler.resolve_url", return_value="https://canonical.url/")
+    @patch("src.pipeline.scheduler.resolve_url", return_value={"canonical_url": "https://canonical.url/", "source_url_type": "full", "video_id": "1234567890123"})
     def test_douk_success_with_none_info_dict_still_done(
         self, mock_resolve, mock_ytdlp, mock_douk,
         mock_meta, mock_fm, mock_body, mock_write, tmp_path
@@ -238,12 +251,12 @@ class TestRunOnceDoukSuccessMetadataFallback:
         conn = _init_conn(db_path)
         task_id = _enqueue_task(conn)
         config = _make_config(tmp_path)
-        config["douk_path"] = "/usr/bin/douk"
+        config["downloader"]["douk_path"] = "/usr/bin/douk"
 
         mock_ytdlp.side_effect = yt_dlp.utils.DownloadError("network error")
 
         # DouK succeeds but returns info_dict=None (the bug scenario)
-        tmp_dir = config["tmp_dir"]
+        tmp_dir = Path(config["downloader"]["temp_dir"])
         tmp_dir.mkdir(parents=True, exist_ok=True)
         subtitle_path = tmp_dir / "1234567890123.zh.vtt"
         subtitle_path.write_text("WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nhello\n")
@@ -276,7 +289,7 @@ class TestRunOnceWriteFailure:
     @patch("src.pipeline.scheduler.build_frontmatter", return_value={"title": "t"})
     @patch("src.pipeline.scheduler.extract_metadata", return_value={"title": "t"})
     @patch("src.pipeline.scheduler.download_video")
-    @patch("src.pipeline.scheduler.resolve_url", return_value="https://canonical.url/")
+    @patch("src.pipeline.scheduler.resolve_url", return_value={"canonical_url": "https://canonical.url/", "source_url_type": "full", "video_id": "1234567890123"})
     def test_write_error_task_becomes_failed(
         self, mock_resolve, mock_download, mock_meta,
         mock_fm, mock_body, mock_write, tmp_path
@@ -286,7 +299,7 @@ class TestRunOnceWriteFailure:
         task_id = _enqueue_task(conn)
         config = _make_config(tmp_path)
 
-        mock_download.return_value = _mock_download_result(config["tmp_dir"])
+        mock_download.return_value = _mock_download_result(Path(config["downloader"]["temp_dir"]))
 
         from src.pipeline.scheduler import run_once
         run_once(db_path, config)
@@ -308,10 +321,10 @@ class TestRunOnceCorrelationIdPropagated:
     @patch("src.pipeline.scheduler.build_frontmatter", return_value={"title": "t"})
     @patch("src.pipeline.scheduler.extract_metadata", return_value={"title": "t"})
     @patch("src.pipeline.scheduler.download_video")
-    @patch("src.pipeline.scheduler.resolve_url", return_value="https://canonical.url/")
+    @patch("src.pipeline.scheduler.resolve_url", return_value={"canonical_url": "https://canonical.url/", "source_url_type": "full", "video_id": "1234567890123"})
     def test_correlation_id_in_log_output(
         self, mock_resolve, mock_download, mock_meta,
-        mock_fm, mock_body, mock_write, mock_transition, tmp_path, caplog
+        mock_fm, mock_body, mock_write, mock_transition, tmp_path
     ):
         db_path = tmp_path / "test.sqlite3"
         conn = _init_conn(db_path)
@@ -319,15 +332,24 @@ class TestRunOnceCorrelationIdPropagated:
         task_id = _enqueue_task(conn, correlation_id=cid)
         config = _make_config(tmp_path)
 
-        mock_download.return_value = _mock_download_result(config["tmp_dir"])
+        mock_download.return_value = _mock_download_result(Path(config["downloader"]["temp_dir"]))
 
-        with caplog.at_level(logging.INFO):
-            from src.pipeline.scheduler import run_once
-            run_once(db_path, config)
+        from src.pipeline.scheduler import run_once
+        run_once(db_path, config)
 
-        # correlation_id should appear in at least one log line
-        cid_found = any(cid in record.message for record in caplog.records)
-        assert cid_found, f"correlation_id {cid} not found in logs"
+        # flush structlog 文件句柄，确保日志落盘
+        from src.utils.logging_config import _log_file_handle
+        if _log_file_handle:
+            _log_file_handle.flush()
+
+        # structlog 现在写文件，读 log 文件验证 correlation_id
+        log_dir = Path(config["logging"]["dir"]) / "scheduler"
+        log_files = list(log_dir.glob("*.log")) if log_dir.exists() else []
+        log_content = ""
+        for lf in log_files:
+            log_content += lf.read_text(encoding="utf-8")
+
+        assert cid in log_content, f"correlation_id {cid} not found in log files (dir={log_dir}, files={log_files})"
 
 
 # ── Test 7: Cleanup temp files ────────────────────────────────────────────
@@ -341,7 +363,7 @@ class TestRunOnceCleanupTempFiles:
     @patch("src.pipeline.scheduler.build_frontmatter", return_value={"title": "t"})
     @patch("src.pipeline.scheduler.extract_metadata", return_value={"title": "t"})
     @patch("src.pipeline.scheduler.download_video")
-    @patch("src.pipeline.scheduler.resolve_url", return_value="https://canonical.url/")
+    @patch("src.pipeline.scheduler.resolve_url", return_value={"canonical_url": "https://canonical.url/", "source_url_type": "full", "video_id": "1234567890123"})
     def test_temp_files_deleted_after_write(
         self, mock_resolve, mock_download, mock_meta,
         mock_fm, mock_body, mock_write, tmp_path
@@ -351,7 +373,7 @@ class TestRunOnceCleanupTempFiles:
         _enqueue_task(conn)
         config = _make_config(tmp_path)
 
-        dl_result = _mock_download_result(config["tmp_dir"])
+        dl_result = _mock_download_result(Path(config["downloader"]["temp_dir"]))
         mock_download.return_value = dl_result
 
         video_path = dl_result["video_path"]

@@ -116,14 +116,14 @@ def create_app(conn: sqlite3.Connection | None = None, vault_root: Path | str | 
         if task is None:
             raise HTTPException(status_code=404, detail="task not found")
 
-        # Build note_path for completed tasks
+        # Build note_path for completed tasks (P2 fix: use updated_at, not created_at)
+        # Writer uses completion time for month dir, so must match here
         note_path = None
         if task["status"] == "done" and _deps["vault_root"]:
-            # Parse created_at to get month
-            created = task.get("created_at", "")
-            if created:
+            completed_at = task.get("updated_at", task.get("created_at", ""))
+            if completed_at:
                 try:
-                    dt = datetime.fromisoformat(created)
+                    dt = datetime.fromisoformat(completed_at)
                     month_dir = dt.strftime("%Y-%m")
                     note_path = str(_deps["vault_root"] / "inbox" / "douyin" / month_dir / f"{task['video_id']}.md")
                 except ValueError:
@@ -156,7 +156,8 @@ def create_app(conn: sqlite3.Connection | None = None, vault_root: Path | str | 
 
 
 def main():
-    """Entry point for uvicorn."""
+    """Entry point for uvicorn + scheduler."""
+    import threading
     import yaml
     import uvicorn
 
@@ -178,6 +179,16 @@ def main():
 
     # Create app (startup hook now in lifespan)
     app = create_app(conn=conn, vault_root=vault_root)
+
+    # Start scheduler in background thread (P0 fix: bridge must auto-start scheduler)
+    from src.pipeline.scheduler import run_forever
+    scheduler_thread = threading.Thread(
+        target=run_forever,
+        args=(db_path, config),
+        daemon=True,
+        name="scheduler",
+    )
+    scheduler_thread.start()
 
     # Run server
     uvicorn.run(app, host=host, port=port)

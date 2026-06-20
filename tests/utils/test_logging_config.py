@@ -6,10 +6,19 @@ TDD: 3 tests covering:
 3. test_logging_config_correlation_id_injected — 日志含 correlation_id
 """
 import json
-import logging
 from pathlib import Path
 
 import pytest
+import structlog
+
+
+@pytest.fixture(autouse=True)
+def _reset_structlog():
+    """每个测试前后重置 structlog 状态，确保测试隔离。"""
+    from src.utils.logging_config import _reset_logging
+    _reset_logging()
+    yield
+    _reset_logging()
 
 
 class TestLoggingConfigCreatesLogDir:
@@ -35,7 +44,7 @@ class TestLoggingConfigCreatesLogDir:
 class TestLoggingConfigJsonFormat:
     """test_logging_config_json_format — 日志输出是 JSON"""
 
-    def test_log_output_is_json(self, tmp_path, capsys):
+    def test_log_output_is_json(self, tmp_path):
         from src.utils.logging_config import configure_logging
 
         config = {
@@ -48,22 +57,19 @@ class TestLoggingConfigJsonFormat:
 
         configure_logging(config, module_name="test_json")
 
-        # Get the structlog logger and emit a test message
-        import structlog
         logger = structlog.get_logger("test_json")
         logger.info("test_event", key="value")
 
-        # Check the log file output
         log_file = tmp_path / "logs" / "test_json"
         log_files = list(log_file.glob("*.log"))
         assert len(log_files) > 0, "Should have created a log file"
 
-        # Read the log file and verify it's JSON
         with open(log_files[0], "r", encoding="utf-8") as f:
             line = f.readline().strip()
             if line:
                 parsed = json.loads(line)
                 assert "event" in parsed, f"JSON log should have 'event' key: {parsed}"
+                assert parsed["event"] == "test_event"
 
 
 class TestLoggingConfigCorrelationIdInjected:
@@ -82,7 +88,6 @@ class TestLoggingConfigCorrelationIdInjected:
 
         configure_logging(config, module_name="test_corr")
 
-        import structlog
         logger = structlog.get_logger("test_corr")
         logger.info("test_event", correlation_id="abc-123-def")
 
