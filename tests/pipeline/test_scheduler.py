@@ -212,6 +212,59 @@ class TestRunOnceDoukAlsoFails:
         assert task["error_code"] == "download_failed_all_tools"
 
 
+# ── Test 4b: DouK success but info_dict=None → metadata fallback ───────────
+
+
+class TestRunOnceDoukSuccessMetadataFallback:
+    """test_run_once_douk_success_metadata_fallback — DouK succeeds with info_dict=None, task still done."""
+
+    @patch("src.pipeline.scheduler.write_note", return_value=Path("note.md"))
+    @patch("src.pipeline.scheduler.build_note_body", return_value="body")
+    @patch("src.pipeline.scheduler.build_frontmatter", return_value={"title": "t"})
+    @patch("src.pipeline.scheduler.extract_metadata", return_value={
+        "title": "", "uploader": "", "uploader_id": "",
+        "duration_seconds": 0, "uploaded_at": "", "thumbnail": "",
+    })
+    @patch("src.pipeline.scheduler.download_with_douk")
+    @patch("src.pipeline.scheduler.download_video")
+    @patch("src.pipeline.scheduler.resolve_url", return_value="https://canonical.url/")
+    def test_douk_success_with_none_info_dict_still_done(
+        self, mock_resolve, mock_ytdlp, mock_douk,
+        mock_meta, mock_fm, mock_body, mock_write, tmp_path
+    ):
+        import yt_dlp
+
+        db_path = tmp_path / "test.sqlite3"
+        conn = _init_conn(db_path)
+        task_id = _enqueue_task(conn)
+        config = _make_config(tmp_path)
+        config["douk_path"] = "/usr/bin/douk"
+
+        mock_ytdlp.side_effect = yt_dlp.utils.DownloadError("network error")
+
+        # DouK succeeds but returns info_dict=None (the bug scenario)
+        tmp_dir = config["tmp_dir"]
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        subtitle_path = tmp_dir / "1234567890123.zh.vtt"
+        subtitle_path.write_text("WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nhello\n")
+        mock_douk.return_value = {
+            "video_path": tmp_dir / "1234567890123.mp4",
+            "subtitle_path": subtitle_path,
+            "subtitle_source": "douk_native",
+            "downloader_used": "douk",
+            "info_dict": None,  # <-- the bug: DouK doesn't produce info_dict
+        }
+
+        from src.pipeline.scheduler import run_once
+        run_once(db_path, config)
+
+        mock_douk.assert_called_once()
+        # extract_metadata should have been called with {} (not None)
+        mock_meta.assert_called_once_with({})
+        task = db.get_task(conn, task_id)
+        assert task["status"] == "done"
+
+
 # ── Test 5: Write failure ─────────────────────────────────────────────────
 
 

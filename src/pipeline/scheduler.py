@@ -88,7 +88,8 @@ def process_task(conn, task: dict, config: dict) -> None:
             )
             return
 
-        metadata = extract_metadata(dl_result["info_dict"])
+        info_dict = dl_result.get("info_dict") or {}
+        metadata = extract_metadata(info_dict)
 
         # ── writing 阶段 ───────────────────────────────────────────────
         transition(
