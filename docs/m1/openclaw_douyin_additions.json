@@ -1,0 +1,59 @@
+## 添加到 openclaw.json 的内容
+
+### 1. agents.list 数组末尾加一条
+
+```json
+{
+  "agentDir": "C:\\Users\\Admin\\.openclaw\\agents\\douyin",
+  "id": "douyin",
+  "model": "xiaomimimotokenplan/mimo-v2.5-pro",
+  "name": "抖音",
+  "subagents": {
+    "allowAgents": []
+  },
+  "workspace": "C:\\Users\\Admin\\.openclaw\\workspace-douyin"
+}
+```
+
+### 2. channels.feishu.accounts 加一条
+
+```json
+"douyin": {
+  "appId": "<新建飞书应用的 appId>",
+  "appSecret": "<新建飞书应用的 appSecret>",
+  "groupAllowFrom": [
+    "oc_516376df9cc2315fc12470e56e72c4af"
+  ]
+}
+```
+
+### 3. bindings 数组末尾加一条
+
+```json
+{
+  "type": "route",
+  "agentId": "douyin",
+  "match": {
+    "channel": "feishu",
+    "accountId": "douyin"
+  }
+}
+```
+
+### 4. 创建 agent 工作目录
+
+```powershell
+mkdir "C:\Users\Admin\.openclaw\agents\douyin"
+mkdir "C:\Users\Admin\.openclaw\workspace-douyin"
+```
+
+### 5. 重启 openclaw
+
+```powershell
+# 方式1：gateway restart
+# 方式2：pkill openclaw && openclaw
+```
+
+### 6. 验证
+
+飞书向"抖音"机器人发一条 `你好`，确认 bishu/douyin 不被错误触发（只响应含 douyin.com 的消息）。

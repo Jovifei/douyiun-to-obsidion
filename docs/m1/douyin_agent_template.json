@@ -1,0 +1,10 @@
+{
+  "id": "douyin",
+  "name": "抖音",
+  "model": "xiaomimimotokenplan/mimo-v2.5-pro",
+  "agentDir": "C:\\Users\\Admin\\.openclaw\\agents\\douyin",
+  "workspace": "C:\\Users\\Admin\\.openclaw\\workspace-douyin",
+  "subagents": {
+    "allowAgents": []
+  }
+}
