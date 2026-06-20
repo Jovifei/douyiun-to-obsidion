@@ -5,7 +5,6 @@ D-2: M1 不调 LLM
 DouK 兜底: yt-dlp 失败重试 N 次后切 download_with_douk
 correlation_id: 每条任务 UUID v4，贯穿全部日志
 """
-import logging
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -23,23 +22,11 @@ from src.obsidian.note_builder import build_note_body
 from src.obsidian.writer import write_note
 from src.queue import db
 from src.pipeline.state_machine import transition
+from src.pipeline.errors import classify_exception
+from src.utils.cookie_probe import probe_cookie
+from src.utils.logging_config import configure_logging
 
-structlog.configure(
-    processors=[
-        structlog.stdlib.filter_by_level,
-        structlog.stdlib.add_logger_name,
-        structlog.stdlib.add_log_level,
-        structlog.stdlib.PositionalArgumentsFormatter(),
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.processors.StackInfoRenderer(),
-        structlog.processors.format_exc_info,
-        structlog.dev.ConsoleRenderer(),
-    ],
-    context_class=dict,
-    logger_factory=structlog.stdlib.LoggerFactory(),
-    wrapper_class=structlog.stdlib.BoundLogger,
-    cache_logger_on_first_use=True,
-)
+# structlog 配置移到 configure_logging() 函数中（Task 11 reviewer 指出）
 logger = structlog.get_logger(__name__)
 
 
@@ -225,18 +212,8 @@ def _download_with_fallback(
 def _handle_task_failure(conn, task_id: int, correlation_id: str, error: Exception) -> None:
     """将异常映射为 error_code 并置任务为 failed。"""
     error_str = str(error)
-    error_code = "unknown_error"
-
-    if "no_subtitle_in_m1" in error_str:
-        error_code = "no_subtitle_in_m1"
-    elif "cookie" in error_str.lower():
-        error_code = "cookie_expired"
-    elif "douk" in error_str.lower() or "download" in error_str.lower():
-        error_code = "download_failed_all_tools"
-    elif "frontmatter" in error_str.lower():
-        error_code = "incomplete_frontmatter"
-    elif isinstance(error, OSError):
-        error_code = "write_failed"
+    # 使用 classify_exception 替代内联字符串匹配
+    error_code = classify_exception(error).value
 
     logger.error(
         "task_processing_failed",
@@ -267,6 +244,9 @@ def _cleanup_tmp_files(dl_result: dict, tmp_dir: Path, video_id: str) -> None:
 
 def run_once(db_path, config: dict) -> None:
     """处理一条任务（供测试用，不无限循环）。"""
+    # 配置日志（函数式 API）
+    configure_logging(config, module_name="scheduler")
+
     conn = db.init_db(db_path)
     try:
         task = db.atomic_dequeue(conn)
@@ -279,13 +259,18 @@ def run_once(db_path, config: dict) -> None:
 
 def run_forever(db_path, config: dict) -> None:
     """主循环：dequeue → process_task → mark done/failed → cleanup → sleep 5s → 循环。"""
+    # 配置日志（函数式 API，替代模块顶层 structlog.configure）
+    configure_logging(config, module_name="scheduler")
+
     conn = db.init_db(db_path)
     logger.info("scheduler_started", db_path=str(db_path))
 
-    # cookie 探活（启动时一次）
+    # cookie 探活（启动时用 HTTP 探活，不只是文件存在检查）
     cookies_path = config.get("cookies_path", "")
     if cookies_path:
-        _probe_cookies(cookies_path)
+        test_url = config.get("cookie_test_url", "https://v.douyin.com/test/")
+        probe_ok = probe_cookie(cookies_path, test_url)
+        logger.info("cookies_probe_result", path=cookies_path, ok=probe_ok)
 
     # 复活 zombie 任务
     zombie_count = db.reclaim_zombie_tasks(conn, timeout_minutes=config.get("zombie_timeout_minutes", 30))
@@ -303,14 +288,3 @@ def run_forever(db_path, config: dict) -> None:
         logger.info("scheduler_stopped")
     finally:
         conn.close()
-
-
-def _probe_cookies(cookies_path: str) -> None:
-    """cookie 探活：检查文件存在且非空。"""
-    p = Path(cookies_path)
-    if not p.exists():
-        logger.warning("cookies_file_missing", path=cookies_path)
-    elif p.stat().st_size == 0:
-        logger.warning("cookies_file_empty", path=cookies_path)
-    else:
-        logger.info("cookies_probe_ok", path=cookies_path)

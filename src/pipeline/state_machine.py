@@ -5,12 +5,13 @@ D-4 v2: pending → fetching → writing → done | failed
 
 Spec ref: specs/task-queue-pipeline/spec.md Requirement "状态机" + "状态转移审计日志"
 """
-import logging
 from datetime import datetime, timezone
+
+import structlog
 
 from src.queue import db
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class IllegalTransitionError(ValueError):
