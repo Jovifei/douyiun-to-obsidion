@@ -5,6 +5,7 @@ Port: 8765 (D-9 locked)
 """
 import sqlite3
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 
@@ -57,7 +58,18 @@ class QueueStatsResponse(BaseModel):
 
 def create_app(conn: sqlite3.Connection | None = None, vault_root: Path | str | None = None) -> FastAPI:
     """Create FastAPI app with optional dependencies for testing."""
-    app = FastAPI(title="douyin-bridge", version="0.1.0")
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        # startup: reclaim zombie tasks
+        if conn:
+            reclaimed = db.reclaim_zombie_tasks(conn)
+            if reclaimed > 0:
+                print(f"Reclaimed {reclaimed} zombie tasks")
+        yield
+        # shutdown: nothing to clean up
+
+    app = FastAPI(title="douyin-bridge", version="0.1.0", lifespan=lifespan)
 
     # Store dependencies
     _deps = {"conn": conn, "vault_root": Path(vault_root) if vault_root else None}
@@ -164,15 +176,8 @@ def main():
     # Init DB
     conn = db.init_db(db_path)
 
-    # Create app
+    # Create app (startup hook now in lifespan)
     app = create_app(conn=conn, vault_root=vault_root)
-
-    # Startup hook: reclaim zombie tasks
-    @app.on_event("startup")
-    async def on_startup():
-        reclaimed = db.reclaim_zombie_tasks(conn)
-        if reclaimed > 0:
-            print(f"Reclaimed {reclaimed} zombie tasks")
 
     # Run server
     uvicorn.run(app, host=host, port=port)

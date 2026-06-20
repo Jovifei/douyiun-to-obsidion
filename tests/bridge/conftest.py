@@ -19,15 +19,8 @@ async def client(tmp_db, tmp_vault):
     conn.row_factory = None  # Reset to ensure schema creation works
     conn = db.init_db(db_path)
 
-    # Create app with test dependencies
+    # Create app with test dependencies (startup hook now in lifespan)
     app = create_app(conn=conn, vault_root=vault_root)
-
-    # Register startup hook: reclaim zombie tasks
-    @app.on_event("startup")
-    async def on_startup():
-        reclaimed = db.reclaim_zombie_tasks(conn)
-        if reclaimed > 0:
-            print(f"Reclaimed {reclaimed} zombie tasks")
 
     transport = ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:

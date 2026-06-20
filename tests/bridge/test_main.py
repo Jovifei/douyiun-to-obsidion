@@ -188,16 +188,13 @@ class TestStartupHook:
         row = conn.execute("SELECT status FROM task WHERE video_id='111111'").fetchone()
         assert row["status"] == "fetching"
 
-        # Create app and register startup hook (same as conftest does)
+        # Create app (startup hook now in lifespan handler inside create_app)
         app = create_app(conn=conn, vault_root=vault_root)
 
-        @app.on_event("startup")
-        async def on_startup():
-            reclaimed = db.reclaim_zombie_tasks(conn)
-
-        # Simulate FastAPI startup event
-        for handler in app.router.on_startup:
-            await handler()
+        # Simulate FastAPI startup by triggering the lifespan
+        from contextlib import asynccontextmanager
+        async with app.router.lifespan_context(app):
+            pass  # lifespan startup runs reclaim_zombie_tasks
 
         # Verify zombie was reclaimed to 'pending'
         row = conn.execute("SELECT status FROM task WHERE video_id='111111'").fetchone()
