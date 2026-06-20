@@ -9,7 +9,7 @@ Spec ref: specs/task-queue-pipeline/spec.md
 - Scenario: status 枚举约束 → 设 'processing' 应被 CHECK 拒绝
 """
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -134,7 +134,7 @@ class TestReclaimZombie:
             correlation_id="c1",
         )
         atomic_dequeue(db)  # 置 fetching
-        old_time = (datetime.utcnow() - timedelta(hours=1)).strftime(
+        old_time = (datetime.now(timezone.utc) - timedelta(hours=1)).strftime(
             "%Y-%m-%d %H:%M:%S"
         )
         db.execute("UPDATE task SET claimed_at=? WHERE id=?", (old_time, tid))
@@ -160,7 +160,7 @@ class TestReclaimZombie:
         atomic_dequeue(db)
         db.execute("UPDATE task SET status='writing' WHERE id=?", (tid,))
         db.commit()
-        old_time = (datetime.utcnow() - timedelta(hours=1)).strftime(
+        old_time = (datetime.now(timezone.utc) - timedelta(hours=1)).strftime(
             "%Y-%m-%d %H:%M:%S"
         )
         db.execute("UPDATE task SET claimed_at=? WHERE id=?", (old_time, tid))
