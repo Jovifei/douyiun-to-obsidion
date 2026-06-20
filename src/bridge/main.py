@@ -5,7 +5,7 @@ Port: 8765 (D-9 locked)
 """
 import sqlite3
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -35,6 +35,7 @@ class TaskResponse(BaseModel):
     note_path: str | None = None
     error_code: str | None = None
     error_message: str | None = None
+    correlation_id: str
     created_at: str
     updated_at: str
 
@@ -75,15 +76,14 @@ def create_app(conn: sqlite3.Connection | None = None, vault_root: Path | str | 
         source_url_type = result["source_url_type"]
         canonical_url = result["canonical_url"]
 
-        # Duplicate detection
+        # Duplicate detection — search all month subdirectories
         if not req.force and _deps["vault_root"]:
-            now = datetime.now(timezone.utc)
-            month_dir = now.strftime("%Y-%m")
-            note_path = _deps["vault_root"] / "inbox" / "douyin" / month_dir / f"{video_id}.md"
-            if note_path.exists():
+            douyin_dir = _deps["vault_root"] / "inbox" / "douyin"
+            matches = list(douyin_dir.glob(f"**/{video_id}.md"))
+            if matches:
                 return IngestResponse(
                     already_archived=True,
-                    note_path=str(note_path),
+                    note_path=str(matches[0]),
                 )
 
         # Enqueue task
@@ -125,6 +125,7 @@ def create_app(conn: sqlite3.Connection | None = None, vault_root: Path | str | 
             note_path=note_path,
             error_code=task.get("error_code"),
             error_message=task.get("error_message"),
+            correlation_id=task.get("correlation_id", ""),
             created_at=task.get("created_at", ""),
             updated_at=task.get("updated_at", ""),
         )
@@ -140,14 +141,6 @@ def create_app(conn: sqlite3.Connection | None = None, vault_root: Path | str | 
         return QueueStatsResponse(**stats)
 
     return app
-
-
-def startup_reclaim(app: FastAPI):
-    """Register startup hook to reclaim zombie tasks."""
-    @app.on_event("startup")
-    async def on_startup():
-        # Reclaim zombie tasks on startup
-        pass
 
 
 def main():

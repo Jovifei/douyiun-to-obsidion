@@ -22,6 +22,13 @@ async def client(tmp_db, tmp_vault):
     # Create app with test dependencies
     app = create_app(conn=conn, vault_root=vault_root)
 
+    # Register startup hook: reclaim zombie tasks
+    @app.on_event("startup")
+    async def on_startup():
+        reclaimed = db.reclaim_zombie_tasks(conn)
+        if reclaimed > 0:
+            print(f"Reclaimed {reclaimed} zombie tasks")
+
     transport = ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac

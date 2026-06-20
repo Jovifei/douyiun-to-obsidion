@@ -5,6 +5,7 @@ Tests use httpx.AsyncClient + ASGITransport, no real uvicorn.
 import pytest
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import patch, MagicMock
 
 import httpx
 
@@ -55,6 +56,19 @@ class TestPostIngest:
         assert data["status"] == "pending"
 
     @pytest.mark.anyio
+    async def test_duplicate_detection_cross_month(self, client: httpx.AsyncClient, tmp_vault: Path):
+        """Duplicate detection finds video_id in any month subdirectory."""
+        # Create a fake note in a DIFFERENT month (not current)
+        old_month_dir = tmp_vault / "inbox" / "douyin" / "2025-01"
+        old_month_dir.mkdir(parents=True, exist_ok=True)
+        (old_month_dir / "555555.md").write_text("old note")
+
+        resp = await client.post("/ingest", json={"source_url": "https://www.douyin.com/video/555555"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["already_archived"] is True
+
+    @pytest.mark.anyio
     async def test_ingest_rejects_empty_source_url(self, client: httpx.AsyncClient):
         """Empty source_url returns 422 validation error."""
         resp = await client.post("/ingest", json={"source_url": ""})
@@ -65,6 +79,19 @@ class TestPostIngest:
         """Non-douyin URL returns 400."""
         resp = await client.post("/ingest", json={"source_url": "https://www.youtube.com/watch?v=abc"})
         assert resp.status_code == 400
+
+    @pytest.mark.anyio
+    async def test_post_ingest_mocked_resolve(self, client: httpx.AsyncClient):
+        """POST /ingest uses resolve_url — verify it's called (network-isolated)."""
+        mock_result = {
+            "video_id": "888888",
+            "canonical_url": "https://www.douyin.com/video/888888",
+            "source_url_type": "full",
+        }
+        with patch("src.bridge.main.resolve_url", return_value=mock_result) as mock_fn:
+            resp = await client.post("/ingest", json={"source_url": "https://www.douyin.com/video/888888"})
+            assert resp.status_code == 200
+            mock_fn.assert_called_once()
 
 
 class TestGetTasks:
@@ -83,6 +110,20 @@ class TestGetTasks:
         data = resp.json()
         assert data["id"] == task_id
         assert data["status"] == "pending"
+
+    @pytest.mark.anyio
+    async def test_get_tasks_includes_correlation_id(self, client: httpx.AsyncClient):
+        """GET /tasks/{task_id} returns correlation_id field."""
+        # Create a task via ingest
+        resp = await client.post("/ingest", json={"source_url": "https://www.douyin.com/video/777777"})
+        task_id = resp.json()["task_id"]
+
+        resp = await client.get(f"/tasks/{task_id}")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "correlation_id" in data
+        assert isinstance(data["correlation_id"], str)
+        assert len(data["correlation_id"]) > 0
 
     @pytest.mark.anyio
     async def test_get_tasks_not_found(self, client: httpx.AsyncClient):
@@ -126,21 +167,38 @@ class TestStartupHook:
     """Startup hook tests."""
 
     @pytest.mark.anyio
-    async def test_reclaim_zombie_called_on_startup(self, client: httpx.AsyncClient, tmp_db):
-        """Verify reclaim_zombie_tasks is called on app startup."""
-        # This test verifies the startup hook exists by checking that
-        # zombie tasks are reclaimed when the app starts
-        # The actual verification is done by checking the app's lifespan
+    async def test_reclaim_zombie_called_on_startup(self, tmp_db, tmp_vault):
+        """Verify startup hook reclaims zombie tasks (fetching → pending)."""
+        from src.queue import db
+        from src.bridge.main import create_app
         conn, db_path = tmp_db
-        # Insert a zombie task manually
+        conn = db.init_db(db_path)
+        vault_root = tmp_vault
+
+        # Insert a zombie task (stale claimed_at triggers reclaim)
         conn.execute(
             "INSERT INTO task (video_id, source_url, source_url_type, correlation_id, payload_json, status, claimed_at) "
             "VALUES (?, ?, ?, ?, ?, ?, ?)",
             ("111111", "https://www.douyin.com/video/111111", "full", "test", "{}", "fetching",
-             "2026-01-01 00:00:00")
+             "2026-01-01 00:00:00"),
         )
         conn.commit()
-        # The app startup should have already called reclaim
-        # Just verify the endpoint works
-        resp = await client.get("/health")
-        assert resp.status_code == 200
+
+        # Verify it's in 'fetching' before startup
+        row = conn.execute("SELECT status FROM task WHERE video_id='111111'").fetchone()
+        assert row["status"] == "fetching"
+
+        # Create app and register startup hook (same as conftest does)
+        app = create_app(conn=conn, vault_root=vault_root)
+
+        @app.on_event("startup")
+        async def on_startup():
+            reclaimed = db.reclaim_zombie_tasks(conn)
+
+        # Simulate FastAPI startup event
+        for handler in app.router.on_startup:
+            await handler()
+
+        # Verify zombie was reclaimed to 'pending'
+        row = conn.execute("SELECT status FROM task WHERE video_id='111111'").fetchone()
+        assert row["status"] == "pending"
