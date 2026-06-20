@@ -12,6 +12,7 @@ from src.extractors.douk_fallback import (
     DoukNotConfiguredError,
     DoukDownloadError,
 )
+from src.extractors.downloader import NoSubtitleError
 
 
 def test_douk_not_configured_raises():
@@ -107,3 +108,74 @@ def test_douk_result_dict_fields(monkeypatch, tmp_path):
     assert result["video_path"].exists()
     assert result["subtitle_path"] is not None
     assert result["subtitle_path"].name == "456.zh.srt"
+
+
+def test_douk_success_returns_subtitle_source(monkeypatch, tmp_path):
+    """DouK 有字幕 → subtitle_source='douyin_native'。"""
+    def fake_run(cmd, **kw):
+        (tmp_path / "789.mp4").write_bytes(b"fake")
+        (tmp_path / "789.zh.vtt").write_text("WEBVTT\n...")
+
+        class R:
+            returncode = 0
+            stdout = b""
+            stderr = b""
+        return R()
+
+    monkeypatch.setattr("src.extractors.douk_fallback.subprocess.run", fake_run)
+    result = download_with_douk(
+        video_id="789",
+        canonical_url="https://www.douyin.com/video/789",
+        out_dir=tmp_path,
+        douk_path="/fake/douk.exe",
+    )
+    assert result["subtitle_source"] == "douyin_native"
+
+
+def test_douk_success_no_subtitle_raises(monkeypatch, tmp_path):
+    """DouK 只产 mp4 无字幕 → NoSubtitleError('no_subtitle_in_m1')。"""
+    def fake_run(cmd, **kw):
+        (tmp_path / "789.mp4").write_bytes(b"fake")
+        # No subtitle file produced
+
+        class R:
+            returncode = 0
+            stdout = b""
+            stderr = b""
+        return R()
+
+    monkeypatch.setattr("src.extractors.douk_fallback.subprocess.run", fake_run)
+    with pytest.raises(NoSubtitleError, match="no_subtitle_in_m1"):
+        download_with_douk(
+            video_id="789",
+            canonical_url="https://www.douyin.com/video/789",
+            out_dir=tmp_path,
+            douk_path="/fake/douk.exe",
+        )
+
+
+def test_douk_returns_none_metadata_fields(monkeypatch, tmp_path):
+    """DouK 返回 dict 含 info_dict=None + 5 个元数据占位字段。"""
+    def fake_run(cmd, **kw):
+        (tmp_path / "000.mp4").write_bytes(b"fake")
+        (tmp_path / "000.zh.vtt").write_text("WEBVTT\n...")
+
+        class R:
+            returncode = 0
+            stdout = b""
+            stderr = b""
+        return R()
+
+    monkeypatch.setattr("src.extractors.douk_fallback.subprocess.run", fake_run)
+    result = download_with_douk(
+        video_id="000",
+        canonical_url="https://www.douyin.com/video/000",
+        out_dir=tmp_path,
+        douk_path="/fake/douk.exe",
+    )
+    assert result["info_dict"] is None
+    assert result["title"] is None
+    assert result["duration"] is None
+    assert result["uploader"] is None
+    assert result["uploader_url"] is None
+    assert result["thumbnail"] is None

@@ -6,6 +6,8 @@ Requirement: yt-dlp 失败兜底走 DouK-Downloader。
 import subprocess
 from pathlib import Path
 
+from src.extractors.downloader import NoSubtitleError
+
 
 class DoukNotConfiguredError(Exception):
     """douk_path 未配置。"""
@@ -61,8 +63,21 @@ def download_with_douk(
             subtitle_path = p
             break
 
+    # DouK 不返回 info_dict，用文件存在性判定 subtitle_source
+    if subtitle_path is not None:
+        subtitle_source = "douyin_native"
+    else:
+        raise NoSubtitleError("no_subtitle_in_m1")
+
     return {
         "video_path": video_path,
         "subtitle_path": subtitle_path,
+        "subtitle_source": subtitle_source,
         "downloader_used": "douk",
+        "info_dict": None,
+        "title": None,
+        "duration": None,
+        "uploader": None,
+        "uploader_url": None,
+        "thumbnail": None,
     }

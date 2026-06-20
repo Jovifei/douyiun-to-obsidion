@@ -150,6 +150,40 @@ def test_subtitle_path_zh_srt(monkeypatch, tmp_path):
     assert result["subtitle_path"].name == "7234567890123.zh.srt"
 
 
+def test_download_video_includes_downloader_used(monkeypatch, tmp_path):
+    """download_video 返回 dict 含 downloader_used='yt-dlp'。"""
+
+    class FakeYdl:
+        def __init__(self, opts):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            pass
+
+        def extract_info(self, url, download=True):
+            (tmp_path / "X.mp4").write_bytes(b"fake-video")
+            (tmp_path / "X.zh.vtt").write_text("WEBVTT\n...")
+            return {
+                "id": "X",
+                "subtitles": {"zh": [{"url": "http://x.vtt"}]},
+                "automatic_captions": {"zh": [{"url": "http://x.vtt"}]},
+                "title": "Test video",
+            }
+
+    monkeypatch.setattr(
+        "src.extractors.downloader.yt_dlp.YoutubeDL", lambda opts: FakeYdl(opts)
+    )
+    result = download_video(
+        video_id="X",
+        canonical_url="https://www.douyin.com/video/X",
+        out_dir=tmp_path,
+    )
+    assert result["downloader_used"] == "yt-dlp"
+
+
 def test_classify_subtitle_source_none_defense():
     """(e) classify_subtitle_source with None values uses or {} defense and raises NoSubtitleError."""
     info = {"subtitles": None, "automatic_captions": None}

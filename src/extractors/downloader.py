@@ -84,6 +84,7 @@ def download_video(
         "video_path": video_path,
         "subtitle_path": subtitle_path,
         "subtitle_source": subtitle_source,
+        "downloader_used": "yt-dlp",
         "info_dict": info,
         "title": info.get("title"),
         "duration": info.get("duration"),
