@@ -1,0 +1,39 @@
+# 抖音知识视频归档到 Obsidian -- 配置文件
+# 复制此文件为 config.yaml 并填写实际值
+
+# ── Obsidian vault ──────────────────────────────────────────────
+vault_root: "E:/AI_Tools/Obsidian/data/notes-personal"
+
+# ── API server ──────────────────────────────────────────────────
+server:
+  host: "127.0.0.1"
+  port: 8765
+
+# ── 抖音提取器 ──────────────────────────────────────────────────
+extractor:
+  # 浏览器 cookies 文件路径（用于绕过抖音登录墙）
+  cookies_file: "cookies.txt"
+  # 下载目录
+  download_dir: "./downloads"
+  # 下载格式: mp4 或 best
+  format: "mp4"
+
+# ── 飞书 Bishu bridge ───────────────────────────────────────────
+feishu:
+  # 使用环境变量 FEISHU_APP_ID / FEISHU_APP_SECRET
+  base_url: "https://open.feishu.cn"
+
+# ── 多模态 AI ───────────────────────────────────────────────────
+mimo:
+  # 使用环境变量 MIMO_API_KEY
+  base_url: "https://api.minimaxi.com"
+
+# ── 任务队列 ────────────────────────────────────────────────────
+queue:
+  max_concurrent: 2
+  retry_limit: 3
+
+# ── 冷备份 ──────────────────────────────────────────────────────
+backup:
+  enabled: true
+  git_remote: ""
