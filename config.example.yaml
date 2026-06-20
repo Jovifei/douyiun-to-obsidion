@@ -1,0 +1,29 @@
+# M1 解析服务配置模板。复制为 config.yaml 后填真实路径。
+server:
+  host: "127.0.0.1"
+  port: 8765                    # D-9 锁定，勿改
+
+vault:
+  root: "E:\\AI_Tools\\Obsidian\\data\\notes-personal"
+  inbox_subdir: "inbox/douyin"
+  attachments_subdir: "attachments/douyin"
+
+queue:
+  db_path: "E:\\project\\douyin_to_obsidian\\data\\queue.sqlite3"
+  zombie_timeout_minutes: 30    # B4 zombie 复活阈值
+
+downloader:
+  cookies_path: ""              # 留空 = 不用 cookie；填路径 = 启用 cookie 探活
+  temp_dir: "E:\\project\\douyin_to_obsidian\\data\\tmp"
+  yt_dlp_retries: 3
+  douk_path: ""                 # DouK-Downloader 可执行路径，留空 = 禁用兜底
+
+logging:
+  level: "INFO"
+  dir: "E:\\project\\douyin_to_obsidian\\logs"
+  rotation: "daily"
+
+git_backup:
+  vault_root: "E:\\AI_Tools\\Obsidian\\data\\notes-personal"
+  remote_url: ""                # OQ-4 未决，留空 = 仅本地 commit
+  cron_time: "03:00"
