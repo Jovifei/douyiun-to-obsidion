@@ -1,0 +1,17 @@
+{
+  "change": "m2-asr-fallback",
+  "phase": "design",
+  "mode": "compact",
+  "canonical_spec": "openspec",
+  "generated_by": "comet-handoff.sh",
+  "context_hash": "912ce67668a7b9f8101860ff5087cd0fbcc69a4dc56c428db4d89fcb1b9b35d3",
+  "files": [
+    { "path": "openspec/changes/m2-asr-fallback/proposal.md", "sha256": "fc4c59eea934dbf78cd0b985c2fcb20e82185c6e107157e31246b890e3ba14a6" },
+    { "path": "openspec/changes/m2-asr-fallback/design.md", "sha256": "cfd87bfa8a4e222221344d47d698f068efb47bcf074daacb8723a274bc135542" },
+    { "path": "openspec/changes/m2-asr-fallback/tasks.md", "sha256": "6ac18d214ad7f03bdc4707ee4383b50f26dfed4f6c717b21e2444edd3ae40e74" },
+    { "path": "openspec/changes/m2-asr-fallback/specs/asr-local-whisper/spec.md", "sha256": "46ebd57e02ed9a4921db0f6352700411bdc2690f82ccf2987dc985cbc2cc1d11" },
+    { "path": "openspec/changes/m2-asr-fallback/specs/asr-mimo-api/spec.md", "sha256": "9a526b7a8a1c65c8cdcaec614cd91177b564815f8ad13beca756f6a34e373ba1" },
+    { "path": "openspec/changes/m2-asr-fallback/specs/douyin-extraction/spec.md", "sha256": "a759c60329da71801f3f3dc449b88528b026b11e8c6d08b8346bb299c5cdc635" },
+    { "path": "openspec/changes/m2-asr-fallback/specs/task-queue-pipeline/spec.md", "sha256": "ec07692a7a84f012632989102904598c4d896ecff9c5a506a4eece8ea2efe814" }
+  ]
+}
