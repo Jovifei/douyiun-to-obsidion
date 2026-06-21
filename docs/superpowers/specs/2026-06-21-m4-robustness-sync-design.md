@@ -2,6 +2,8 @@
 comet_change: m4-robustness-sync
 role: technical-design
 canonical_spec: openspec
+archived-with: 2026-06-21-m4-robustness-sync
+status: final
 ---
 
 # M4 健壮性 + 监控 — 技术设计文档
