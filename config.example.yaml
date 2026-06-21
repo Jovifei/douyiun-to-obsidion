@@ -18,6 +18,15 @@ downloader:
   yt_dlp_retries: 3
   douk_path: ""                 # DouK-Downloader 可执行路径，留空 = 禁用兜底
 
+asr:
+  provider: mimo                # mimo | whisper_local
+  mimo:
+    model: mimo-v2.5-asr
+  whisper:
+    model: Belle-whisper-large-v3-turbo-zh
+    device: cuda
+    compute_type: int8_float16
+
 logging:
   level: "INFO"
   dir: "E:\\project\\douyin_to_obsidian\\logs"

@@ -1,11 +1,11 @@
 workflow: full
-phase: build
-build_mode: null
-isolation: null
+phase: verify
+build_mode: subagent-driven-development
+isolation: worktree
 verify_mode: null
 base_ref: af0de56e0f07025bb7ab30dce5a7a26afb57357f
 design_doc: docs/superpowers/specs/2026-06-21-m2-asr-fallback-design.md
-plan: null
+plan: docs/superpowers/plans/2026-06-21-m2-asr-fallback.md
 verify_result: pending
 verification_report: null
 branch_status: pending
@@ -14,3 +14,5 @@ verified_at: null
 archived: false
 handoff_context: openspec/changes/m2-asr-fallback/.comet/handoff/design-context.json
 handoff_hash: 912ce67668a7b9f8101860ff5087cd0fbcc69a4dc56c428db4d89fcb1b9b35d3
+build_command: python -m pytest tests/ -q --tb=no
+verify_command: python -m pytest tests/ -q --tb=no

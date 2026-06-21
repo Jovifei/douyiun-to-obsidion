@@ -92,3 +92,59 @@ def download_video(
         "uploader_url": info.get("uploader_url"),
         "thumbnail": info.get("thumbnail"),
     }
+
+
+def download_video_only(
+    url: str,
+    out_dir: Path,
+    cookies_path: Optional[str] = None,
+) -> dict:
+    """只下载视频不抓字幕，供 ASR 路径使用。
+
+    Args:
+        url: 视频 URL。
+        out_dir: 输出目录。
+        cookies_path: cookies 文件路径。
+
+    Returns:
+        包含 video_path 的 dict。
+
+    Raises:
+        yt_dlp.utils.DownloadError: 下载失败。
+        FileNotFoundError: 视频文件不存在。
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+    outtmpl = str(out_dir / "%(id)s.%(ext)s")
+
+    ydl_opts = {
+        "outtmpl": outtmpl,
+        "quiet": True,
+        "no_warnings": True,
+        "retries": 3,
+        # 不请求字幕
+    }
+    if cookies_path:
+        ydl_opts["cookiefile"] = cookies_path
+
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=True)
+
+    video_id = info.get("id", "unknown")
+    video_path = out_dir / f"{video_id}.mp4"
+    if not video_path.exists():
+        candidates = list(out_dir.glob(f"{video_id}.*"))
+        video_candidates = [p for p in candidates if p.suffix in (".mp4", ".webm")]
+        if not video_candidates:
+            raise FileNotFoundError(f"video file not found for {video_id}")
+        video_path = video_candidates[0]
+
+    return {
+        "video_path": video_path,
+        "video_id": video_id,
+        "info_dict": info,
+        "title": info.get("title"),
+        "duration": info.get("duration"),
+        "uploader": info.get("uploader"),
+        "uploader_url": info.get("uploader_url"),
+        "thumbnail": info.get("thumbnail"),
+    }

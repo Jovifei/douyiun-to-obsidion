@@ -1,54 +1,70 @@
-"""MCP server — 让 openclaw agent 能调用本地 bridge API。
+"""MCP tool server — M2 Task 2。
 
-用法：python src/bridge/mcp_server.py
-openclaw 通过 MCP 协议连接后，agent 可调用 ingest_video / get_task_status / get_health 工具。
+注册 asr_transcribe 工具，供 openclaw MCP 调用。
 """
-import httpx
-from fastmcp import FastMCP
-
-BRIDGE_URL = "http://127.0.0.1:8765"
-
-mcp = FastMCP("douyin-bridge")
+import json
+import subprocess
+from typing import Any
 
 
-@mcp.tool()
-def ingest_video(source_url: str) -> dict:
-    """提交抖音视频 URL 到解析服务，开始归档。
+def _asr_transcribe(audio_path: str) -> dict[str, Any]:
+    """asr_transcribe MCP 工具实现。
+
+    内部调用 openclaw CLI 调用 mimo-v2.5-asr API。
 
     Args:
-        source_url: 抖音视频 URL（支持短链/完整链/分享文案）
+        audio_path: 音频文件路径。
 
     Returns:
-        包含 task_id 和 status 的字典
+        dict 含 text / segments / source / confidence。
     """
-    resp = httpx.post(
-        f"{BRIDGE_URL}/ingest",
-        json={"source_url": source_url},
-        timeout=10,
+    result = subprocess.run(
+        ["openclaw", "tool", "call", "mimo-v2.5-asr", "--audio_path", audio_path],
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
-    return resp.json()
+
+    if result.returncode != 0:
+        raise RuntimeError(f"mimo-v2.5-asr call failed: {result.stderr}")
+
+    return json.loads(result.stdout)
 
 
-@mcp.tool()
-def get_task_status(task_id: int) -> dict:
-    """查询任务状态。
-
-    Args:
-        task_id: ingest_video 返回的 task_id
-
-    Returns:
-        包含 status, note_path, error_code 等的字典
-    """
-    resp = httpx.get(f"{BRIDGE_URL}/tasks/{task_id}", timeout=5)
-    return resp.json()
-
-
-@mcp.tool()
-def get_health() -> dict:
-    """查询解析服务健康状态和队列统计。"""
-    resp = httpx.get(f"{BRIDGE_URL}/health", timeout=5)
-    return resp.json()
+asr_transcribe_tool: dict[str, Any] = {
+    "name": "asr_transcribe",
+    "description": "通过 mimo-v2.5-asr API 转录音频文件",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "audio_path": {
+                "type": "string",
+                "description": "音频文件路径",
+            },
+        },
+        "required": ["audio_path"],
+    },
+    "function": _asr_transcribe,
+}
 
 
-if __name__ == "__main__":
-    mcp.run(transport="stdio")
+class MCPToolServer:
+    """MCP 工具服务器，管理已注册的工具。"""
+
+    def __init__(self) -> None:
+        self.tools: dict[str, dict[str, Any]] = {}
+        self._register_defaults()
+
+    def _register_defaults(self) -> None:
+        """注册默认工具集。"""
+        self.register(asr_transcribe_tool)
+
+    def register(self, tool: dict[str, Any]) -> None:
+        """注册一个 MCP 工具。"""
+        self.tools[tool["name"]] = tool
+
+    def call(self, tool_name: str, **kwargs: str) -> dict[str, Any]:
+        """调用已注册的 MCP 工具。"""
+        if tool_name not in self.tools:
+            raise ValueError(f"unknown tool: {tool_name}")
+        return self.tools[tool_name]["function"](**kwargs)

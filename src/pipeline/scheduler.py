@@ -14,9 +14,13 @@ import structlog
 from src.extractors import (
     resolve_url,
     download_video,
+    download_video_only,
     extract_metadata,
     download_with_douk,
+    NoSubtitleError,
 )
+from src.asr import get_asr_client, ASRError
+from src.asr.audio_preprocess import extract_audio_for_asr
 from src.obsidian.frontmatter import build_frontmatter
 from src.obsidian.note_builder import build_note_body
 from src.obsidian.writer import write_note
@@ -70,14 +74,20 @@ def process_task(conn, task: dict, config: dict) -> None:
 
         subtitle_source = dl_result["subtitle_source"]
         if subtitle_source is None or subtitle_source == "none":
-            transition(
-                conn, task_id, "failed",
-                from_status="fetching",
-                correlation_id=correlation_id,
-                error_code="no_subtitle_in_m1",
-                error_message="no subtitle available in M1",
+            # M2: 无字幕时走 ASR 路径
+            subtitle_source = _run_asr_fallback(
+                dl_result, video_id, tmp_dir, config, correlation_id
             )
-            return
+            if subtitle_source is None:
+                # ASR 也失败，置 failed
+                transition(
+                    conn, task_id, "failed",
+                    from_status="fetching",
+                    correlation_id=correlation_id,
+                    error_code="asr_failed",
+                    error_message="ASR transcription failed",
+                )
+                return
 
         info_dict = dl_result.get("info_dict") or {}
         metadata = extract_metadata(info_dict)
@@ -151,6 +161,107 @@ def process_task(conn, task: dict, config: dict) -> None:
             correlation_id=correlation_id,
         )
 
+    except NoSubtitleError:
+        # M2: 无字幕时走 ASR 路径（而非直接 failed）
+        try:
+            # 构造一个空的 dl_result 供 ASR 使用
+            empty_dl_result = {
+                "video_path": None,
+                "subtitle_path": None,
+                "subtitle_source": None,
+                "downloader_used": "yt-dlp",
+                "info_dict": {},
+                "title": None,
+                "duration": None,
+                "uploader": None,
+                "uploader_url": None,
+                "thumbnail": None,
+                "canonical_url": source_url,
+            }
+            subtitle_source = _run_asr_fallback(
+                empty_dl_result, video_id, tmp_dir, config, correlation_id
+            )
+            if subtitle_source is None:
+                transition(
+                    conn, task_id, "failed",
+                    from_status="fetching",
+                    correlation_id=correlation_id,
+                    error_code="asr_failed",
+                    error_message="ASR transcription failed",
+                )
+                return
+
+            # ASR 成功，继续 writing 阶段
+            info_dict = empty_dl_result.get("info_dict") or {}
+            metadata = extract_metadata(info_dict)
+
+            transition(
+                conn, task_id, "writing",
+                from_status="fetching",
+                correlation_id=correlation_id,
+            )
+
+            vault_root = Path(config.get("vault", {}).get("root", ""))
+
+            subtitle_vtt = ""
+            if empty_dl_result.get("subtitle_path") and empty_dl_result["subtitle_path"].exists():
+                subtitle_vtt = empty_dl_result["subtitle_path"].read_text(encoding="utf-8")
+
+            frontmatter_data = {
+                "title": metadata.get("title", ""),
+                "video_id": video_id,
+                "source_url": source_url,
+                "source_url_type": task.get("source_url_type", ""),
+                "author": metadata.get("uploader", ""),
+                "uploader_id": metadata.get("uploader_id", ""),
+                "duration_seconds": metadata.get("duration_seconds", 0),
+                "uploaded_at": metadata.get("uploaded_at", ""),
+                "captured_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                "cover_url": metadata.get("thumbnail", ""),
+                "local_cover_path": "",
+                "subtitle_source": subtitle_source,
+                "subtitle_language": "zh",
+                "pipeline_version": "m2",
+                "status": "done",
+                "downloader_used": empty_dl_result.get("downloader_used", "yt-dlp"),
+                "correlation_id": correlation_id,
+            }
+            fm = build_frontmatter(frontmatter_data)
+
+            note_body = build_note_body(
+                subtitle_vtt=subtitle_vtt,
+                metadata=metadata,
+                local_cover_path="",
+                correlation_id=correlation_id,
+                raw_input=source_url,
+                processing_time_seconds=0,
+            )
+
+            write_note(
+                vault_root=vault_root,
+                video_id=video_id,
+                frontmatter_dict=fm,
+                note_body=note_body,
+                cover_url=metadata.get("thumbnail", ""),
+                capture_time=datetime.now(timezone.utc),
+            )
+
+            _cleanup_tmp_files(empty_dl_result, tmp_dir, video_id)
+
+            transition(
+                conn, task_id, "done",
+                from_status="writing",
+                correlation_id=correlation_id,
+            )
+            _get_logger().info(
+                "task_processing_done_asr",
+                task_id=task_id,
+                correlation_id=correlation_id,
+            )
+
+        except Exception as asr_e:
+            _handle_task_failure(conn, task_id, correlation_id, asr_e)
+
     except Exception as e:
         _handle_task_failure(conn, task_id, correlation_id, e)
 
@@ -213,6 +324,100 @@ def _download_with_fallback(
     raise last_error
 
 
+def _run_asr_fallback(
+    dl_result: dict,
+    video_id: str,
+    tmp_dir: Path,
+    config: dict,
+    correlation_id: str,
+) -> str | None:
+    """无字幕时走 ASR 路径：下载视频 → 提取音频 → 转写。
+
+    Returns:
+        subtitle_source 字符串，失败返回 None。
+
+    Raises:
+        ASRError: ASR 转写失败。
+    """
+    _get_logger().info(
+        "asr_fallback_triggered",
+        video_id=video_id,
+        correlation_id=correlation_id,
+    )
+
+    # 1. 获取 ASR client
+    try:
+        asr_client = get_asr_client(config)
+    except ValueError as e:
+        _get_logger().error(
+            "asr_client_init_failed",
+            error=str(e),
+            correlation_id=correlation_id,
+        )
+        return None
+
+    # 2. 如果没有视频文件，需要重新下载
+    video_path = dl_result.get("video_path")
+    if video_path is None or not video_path.exists():
+        _get_logger().info(
+            "asr_redownloading_video_only",
+            video_id=video_id,
+            correlation_id=correlation_id,
+        )
+        cookies_path = config.get("downloader", {}).get("cookies_path") or None
+        dl_only_result = download_video_only(
+            url=dl_result.get("canonical_url", ""),
+            out_dir=tmp_dir,
+            cookies_path=cookies_path,
+        )
+        video_path = dl_only_result["video_path"]
+
+    # 3. 提取音频
+    wav_path = tmp_dir / f"{video_id}.wav"
+    try:
+        extract_audio_for_asr(video_path, wav_path)
+    except Exception as e:
+        _get_logger().error(
+            "audio_extract_failed",
+            error=str(e),
+            correlation_id=correlation_id,
+        )
+        return None
+
+    # 4. ASR 转写
+    try:
+        result = asr_client.transcribe(wav_path)
+        subtitle_source = result.source or "asr"
+        _get_logger().info(
+            "asr_transcribe_success",
+            video_id=video_id,
+            subtitle_source=subtitle_source,
+            correlation_id=correlation_id,
+        )
+    except ASRError as e:
+        _get_logger().error(
+            "asr_transcribe_failed",
+            error=str(e),
+            correlation_id=correlation_id,
+        )
+        raise
+    finally:
+        # 清理 .wav 文件
+        if wav_path.exists():
+            try:
+                wav_path.unlink()
+            except OSError:
+                pass
+
+    # 5. 将转写结果写入临时 .vtt 文件供后续流程使用
+    subtitle_path = tmp_dir / f"{video_id}.asr.vtt"
+    subtitle_path.write_text(result.text, encoding="utf-8")
+    dl_result["subtitle_path"] = subtitle_path
+    dl_result["subtitle_source"] = subtitle_source
+
+    return subtitle_source
+
+
 def _handle_task_failure(conn, task_id: int, correlation_id: str, error: Exception) -> None:
     """将异常映射为 error_code 并置任务为 failed。"""
     error_str = str(error)
@@ -236,8 +441,8 @@ def _handle_task_failure(conn, task_id: int, correlation_id: str, error: Excepti
 
 
 def _cleanup_tmp_files(dl_result: dict, tmp_dir: Path, video_id: str) -> None:
-    """清理临时 .mp4 / .vtt 文件。"""
-    for suffix in (".mp4", ".webm", ".zh.vtt", ".zh.srt"):
+    """清理临时 .mp4 / .vtt / .wav 文件。"""
+    for suffix in (".mp4", ".webm", ".zh.vtt", ".zh.srt", ".wav", ".asr.vtt"):
         p = tmp_dir / f"{video_id}{suffix}"
         if p.exists():
             try:

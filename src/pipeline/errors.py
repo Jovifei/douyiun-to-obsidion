@@ -5,6 +5,7 @@ Spec ref: tasks.md §12 — 日志与可观测性
 from enum import Enum
 
 from src.extractors.downloader import NoSubtitleError
+from src.asr import ASRError
 
 
 class ErrorCode(Enum):
@@ -14,6 +15,7 @@ class ErrorCode(Enum):
     COOKIE_EXPIRED = "cookie_expired"
     INCOMPLETE_FRONTMATTER = "incomplete_frontmatter"
     WRITE_FAILED = "write_failed"
+    ASR_FAILED = "asr_failed"
     UNKNOWN = "unknown_error"
 
 
@@ -28,6 +30,9 @@ def classify_exception(error: Exception) -> ErrorCode:
     """
     if isinstance(error, NoSubtitleError):
         return ErrorCode.NO_SUBTITLE_IN_M1
+
+    if isinstance(error, ASRError):
+        return ErrorCode.ASR_FAILED
 
     error_str = str(error).lower()
 
