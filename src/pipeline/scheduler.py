@@ -31,7 +31,7 @@ from src.obsidian.note_builder import build_note_body
 from src.obsidian.writer import write_note
 from src.queue import db
 from src.pipeline.state_machine import transition
-from src.pipeline.errors import classify_exception
+from src.pipeline.errors import classify_exception, is_retryable
 from src.utils.cookie_probe import probe_cookie
 from src.utils.logging_config import configure_logging
 
@@ -392,11 +392,18 @@ def _download_with_fallback(
     config: dict,
     correlation_id: str,
 ) -> dict:
-    """yt-dlp 重试 N 次后切 DouK 兜底。返回下载结果 dict。"""
+    """yt-dlp 退避重试后切 DouK 兜底。返回下载结果 dict。
+
+    D-M4-2: 退避序列 [0, 5, 30, 120, 600]
+    可重试错误 → sleep(退避) + 重试
+    不可重试错误 → 直接跳到 DouK 兜底
+    """
     max_retries = config.get("downloader", {}).get("yt_dlp_retries", 3)
     douk_path = config.get("downloader", {}).get("douk_path", "")
+    # D-M4-2: 指数退避序列
+    backoff_seconds = [0, 5, 30, 120, 600]
 
-    # yt-dlp 重试
+    # yt-dlp 退避重试
     last_error = None
     for attempt in range(max_retries):
         try:
@@ -414,8 +421,22 @@ def _download_with_fallback(
                 attempt=attempt + 1,
                 max_retries=max_retries,
                 error=str(e),
+                retryable=is_retryable(e),
                 correlation_id=correlation_id,
             )
+            # 不可重试 → 直接跳到 DouK 兜底
+            if not is_retryable(e):
+                break
+            # 可重试 → sleep(退避) 再重试
+            if attempt < max_retries - 1:
+                delay = backoff_seconds[min(attempt, len(backoff_seconds) - 1)]
+                _get_logger().info(
+                    "retry_backoff_sleep",
+                    attempt=attempt + 1,
+                    delay_seconds=delay,
+                    correlation_id=correlation_id,
+                )
+                time.sleep(delay)
 
     # DouK 兜底
     if douk_path:
