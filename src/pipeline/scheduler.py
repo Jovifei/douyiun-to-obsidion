@@ -4,7 +4,6 @@ Spec ref: specs/task-queue-pipeline/spec.md + tasks.md §6
 D-2: M1 不调 LLM
 DouK 兜底: yt-dlp 失败重试 N 次后切 download_with_douk
 correlation_id: 每条任务 UUID v4，贯穿全部日志
-M3: LLM 总结 + 视觉理解集成（串行铁律: LLM → VLM）
 """
 import time
 from datetime import datetime, timezone
@@ -22,7 +21,7 @@ from src.extractors import (
 )
 from src.asr import get_asr_client, ASRError
 from src.asr.audio_preprocess import extract_audio_for_asr
-from src.llm import get_summarizer, LLMError
+from src.llm import get_summarizer, LLMError, SummaryResult
 from src.vision.heuristic_router import classify_video, RoutingDecision
 from src.vision.keyframe_extractor import extract_keyframes
 from src.vision.ocr_client import extract_text_from_image
@@ -112,7 +111,7 @@ def process_task(conn, task: dict, config: dict) -> None:
         if dl_result.get("subtitle_path") and dl_result["subtitle_path"].exists():
             subtitle_vtt = dl_result["subtitle_path"].read_text(encoding="utf-8")
 
-        # ── M3: LLM 总结（串行铁律: LLM 先执行）─────────────────────
+        # ── M3: LLM 总结 ───────────────────────────────────────────
         summary_result = None
         summary_error = None
         try:
@@ -121,16 +120,17 @@ def process_task(conn, task: dict, config: dict) -> None:
             _get_logger().info(
                 "llm_summary_success",
                 task_id=task_id,
-                model=summary_result.model,
-                key_points_count=len(summary_result.key_points),
+                model=getattr(summary_result, "model", "unknown"),
+                key_points_count=len(getattr(summary_result, "key_points", [])),
                 correlation_id=correlation_id,
             )
         except LLMError as e:
-            summary_error = e.code
+            summary_error = e.code if hasattr(e, "code") else str(e)
             _get_logger().warning(
                 "llm_summary_failed",
                 task_id=task_id,
-                error_code=e.code,
+                error_code=summary_error,
+                error=str(e),
                 correlation_id=correlation_id,
             )
         except Exception as e:
@@ -146,11 +146,10 @@ def process_task(conn, task: dict, config: dict) -> None:
         vlm_result = None
         ocr_texts = None
         vision_enabled = config.get("vision", {}).get("enabled", False)
-        video_path = dl_result.get("video_path")
+        video_path_for_vision = dl_result.get("video_path")
         video_duration = metadata.get("duration_seconds", 0)
 
-        if vision_enabled and video_path and video_path.exists():
-            # 启发式分流
+        if vision_enabled and video_path_for_vision and video_path_for_vision.exists():
             video_type = classify_video(subtitle_vtt, video_duration, 0)
             _get_logger().info(
                 "vision_routing",
@@ -161,26 +160,22 @@ def process_task(conn, task: dict, config: dict) -> None:
 
             if video_type == RoutingDecision.SUMMARY_WITH_VLM:
                 try:
-                    # 抽取关键帧
                     keyframes_dir = tmp_dir / f"{video_id}_keyframes"
-                    keyframes = extract_keyframes(video_path, keyframes_dir)
+                    keyframes = extract_keyframes(video_path_for_vision, keyframes_dir)
 
                     if keyframes:
-                        # OCR 提取文字
                         ocr_texts = []
                         for kf in keyframes:
                             text = extract_text_from_image(kf)
                             if text:
                                 ocr_texts.append(text)
 
-                        # VLM 描述（逐帧推理）
                         vlm_descriptions = []
                         for kf in keyframes:
                             desc = describe_image(kf)
                             if desc:
                                 vlm_descriptions.append(desc)
 
-                        # 聚合 VLM 描述
                         vlm_result = "; ".join(vlm_descriptions) if vlm_descriptions else None
 
                         _get_logger().info(
@@ -199,24 +194,13 @@ def process_task(conn, task: dict, config: dict) -> None:
                         correlation_id=correlation_id,
                     )
 
-        # ── 构建笔记 ──────────────────────────────────────────────────
-        # 确定 processing_mode
+        # 构建 frontmatter（M3 字段）
+        processing_mode = "subtitle_only"
         if vision_enabled and vlm_result:
             processing_mode = "subtitle_vlm"
-        else:
-            processing_mode = "subtitle_only"
+        elif vision_enabled and ocr_texts:
+            processing_mode = "subtitle_vlm"
 
-        # 确定 summary_status
-        if summary_result:
-            summary_status = "done"
-            summary_text = summary_result.summary_text
-            ai_summary_model = summary_result.model
-        else:
-            summary_status = "failed"
-            summary_text = ""
-            ai_summary_model = None
-
-        # 构建 frontmatter
         frontmatter_data = {
             "title": metadata.get("title", ""),
             "video_id": video_id,
@@ -235,15 +219,13 @@ def process_task(conn, task: dict, config: dict) -> None:
             "status": "done",
             "downloader_used": dl_result.get("downloader_used", "yt-dlp"),
             "correlation_id": correlation_id,
-            # M3 新增字段
-            "summary_status": summary_status,
-            "ai_summary_model": ai_summary_model,
+            # M3 字段
+            "summary_status": "done" if summary_result else ("failed" if summary_error else "not_run"),
             "processing_mode": processing_mode,
-            "summary": summary_text,
+            "ai_summary_model": getattr(summary_result, "model", None) if summary_result else None,
         }
         fm = build_frontmatter(frontmatter_data)
 
-        # 构建笔记正文
         note_body = build_note_body(
             subtitle_vtt=subtitle_vtt,
             metadata=metadata,
@@ -327,45 +309,16 @@ def process_task(conn, task: dict, config: dict) -> None:
             if empty_dl_result.get("subtitle_path") and empty_dl_result["subtitle_path"].exists():
                 subtitle_vtt = empty_dl_result["subtitle_path"].read_text(encoding="utf-8")
 
-            # ── M3: LLM 总结（ASR fallback 路径也需调用）──────────────
+            # M3: LLM 总结（ASR 路径同样适用）
             summary_result = None
             summary_error = None
             try:
-                summarizer = get_summarizer(config)
-                summary_result = summarizer.summarize(subtitle_vtt, metadata)
-                _get_logger().info(
-                    "llm_summary_success",
-                    task_id=task_id,
-                    model=summary_result.model,
-                    key_points_count=len(summary_result.key_points),
-                    correlation_id=correlation_id,
-                )
-            except LLMError as e:
-                summary_error = e.code
-                _get_logger().warning(
-                    "llm_summary_failed",
-                    task_id=task_id,
-                    error_code=e.code,
-                    correlation_id=correlation_id,
-                )
-            except Exception as e:
-                summary_error = str(e)
-                _get_logger().warning(
-                    "llm_summary_error",
-                    task_id=task_id,
-                    error=str(e),
-                    correlation_id=correlation_id,
-                )
-
-            # 确定 summary_status
-            if summary_result:
-                summary_status = "done"
-                summary_text = summary_result.summary_text
-                ai_summary_model = summary_result.model
-            else:
-                summary_status = "failed"
-                summary_text = ""
-                ai_summary_model = None
+                asr_summarizer = get_summarizer(config)
+                summary_result = asr_summarizer.summarize(subtitle_vtt, metadata)
+                _get_logger().info("llm_summary_success_asr", task_id=task_id, model=getattr(summary_result, "model", "unknown"), correlation_id=correlation_id)
+            except Exception as llm_e:
+                summary_error = getattr(llm_e, "code", str(llm_e))
+                _get_logger().warning("llm_summary_failed_asr", task_id=task_id, error=str(llm_e), correlation_id=correlation_id)
 
             frontmatter_data = {
                 "title": metadata.get("title", ""),
@@ -385,11 +338,10 @@ def process_task(conn, task: dict, config: dict) -> None:
                 "status": "done",
                 "downloader_used": empty_dl_result.get("downloader_used", "yt-dlp"),
                 "correlation_id": correlation_id,
-                # M3 新增字段
-                "summary_status": summary_status,
-                "ai_summary_model": ai_summary_model,
+                # M3 字段
+                "summary_status": "done" if summary_result else ("failed" if summary_error else "not_run"),
                 "processing_mode": "subtitle_only",
-                "summary": summary_text,
+                "ai_summary_model": getattr(summary_result, "model", None) if summary_result else None,
             }
             fm = build_frontmatter(frontmatter_data)
 
@@ -586,7 +538,8 @@ def _run_asr_fallback(
                 time_offset += get_audio_duration(chunk_path)
 
         full_text = " ".join(all_text_parts)
-        subtitle_source = chunks[0] and "mimo_asr"  # 取第一片的 source
+        asr_provider = config.get("asr", {}).get("provider", "mimo")
+        subtitle_source = f"{asr_provider}_asr" if chunks else None
         _get_logger().info(
             "asr_transcribe_success",
             video_id=video_id,
@@ -633,7 +586,7 @@ def _run_asr_fallback(
         vtt_lines.append("")
     subtitle_path.write_text("\n".join(vtt_lines), encoding="utf-8")
     dl_result["subtitle_path"] = subtitle_path
-    dl_result["subtitle_source"] = "mimo_asr"
+    dl_result["subtitle_source"] = subtitle_source
 
     return subtitle_source
 
