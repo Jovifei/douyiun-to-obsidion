@@ -1,16 +1,18 @@
 workflow: full
-phase: build
-build_mode: null
-isolation: null
+phase: archive
+build_mode: subagent-driven-development
+isolation: worktree
 verify_mode: null
 base_ref: 2832569c9d429c8a0e1871a4a53529ab7a602d6d
 design_doc: docs/superpowers/specs/2026-06-21-m5-multichannel-batch-design.md
 plan: null
-verify_result: pending
-verification_report: null
-branch_status: pending
+verify_result: pass
+verification_report: docs/superpowers/reports/2026-06-22-m5-multichannel-batch-verify.md
+branch_status: handled
 created_at: 2026-06-21
-verified_at: null
-archived: false
+verified_at: 2026-06-22
+archived: true
 handoff_context: openspec/changes/m5-multichannel-batch/.comet/handoff/design-context.json
 handoff_hash: 2cf8942171d4fa6812a293c3eb1555eb08ead1aab9e1ca8b2e194b49107254af
+build_command: python -m pytest tests/ -q --tb=no
+verify_command: python -m pytest tests/ -q --tb=no

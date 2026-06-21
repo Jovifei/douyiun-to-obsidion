@@ -2,6 +2,8 @@
 comet_change: m5-multichannel-batch
 role: technical-design
 canonical_spec: openspec
+archived-with: 2026-06-22-m5-multichannel-batch
+status: final
 ---
 
 # M5 多平台扩展 + 批量处理 — 技术设计文档
