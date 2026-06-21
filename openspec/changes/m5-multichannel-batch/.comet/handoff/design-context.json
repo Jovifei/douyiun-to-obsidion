@@ -1,0 +1,18 @@
+{
+  "change": "m5-multichannel-batch",
+  "phase": "design",
+  "mode": "compact",
+  "canonical_spec": "openspec",
+  "generated_by": "comet-handoff.sh",
+  "context_hash": "2cf8942171d4fa6812a293c3eb1555eb08ead1aab9e1ca8b2e194b49107254af",
+  "files": [
+    { "path": "openspec/changes/m5-multichannel-batch/proposal.md", "sha256": "9376a3cc46cbde17a813ffab47e479dfe3f22e7a561514a1b01a0e75162e6659" },
+    { "path": "openspec/changes/m5-multichannel-batch/design.md", "sha256": "35469c2fc0ee22aee4f74001c76431c2ffd142ef9b9d4653cc26833bfa028c14" },
+    { "path": "openspec/changes/m5-multichannel-batch/tasks.md", "sha256": "0991a40274759e67a5bee9f3510fd59041e0952d00a624b7818d9b60235e22a5" },
+    { "path": "openspec/changes/m5-multichannel-batch/specs/batch-queue/spec.md", "sha256": "86c1c1a0d77f8a03f973e6b905516f23f7718409c2d0ed4d01374336af0bf8ce" },
+    { "path": "openspec/changes/m5-multichannel-batch/specs/bilibili-extractor/spec.md", "sha256": "02031becb558a2e587c12a2e4e26fd91067f557a178da333227fd68c85511075" },
+    { "path": "openspec/changes/m5-multichannel-batch/specs/platform-extractor/spec.md", "sha256": "b3856e09d5faeb8a0099596238357e1f5fbfcd85b0213e35e3b79aa7c0880b48" },
+    { "path": "openspec/changes/m5-multichannel-batch/specs/xiaohongshu-extractor/spec.md", "sha256": "deb0fd8d3335abf4e77869482e4bcaa812e221803d16ed9637a09e5979a288e2" },
+    { "path": "openspec/changes/m5-multichannel-batch/specs/youtube-extractor/spec.md", "sha256": "8babb2a0dfb51bb13d5704c95908ef3d4f3a2b956a586d258fb9324d6c182ecb" }
+  ]
+}
