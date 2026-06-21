@@ -2,6 +2,7 @@
 change: m2-asr-fallback
 design-doc: docs/superpowers/specs/2026-06-21-m2-asr-fallback-design.md
 base-ref: ec35c7a8d3e7687d99a4cf39728532ea8ba3e802
+archived-with: 2026-06-21-m2-asr-fallback
 ---
 
 # M2 ASR Fallback Implementation Plan
@@ -10,6 +11,7 @@ base-ref: ec35c7a8d3e7687d99a4cf39728532ea8ba3e802
 > Base: M1 (archived)
 > Constraint: D-M2-1 openclaw 合规, D-M2-2 ASRResult 统一, D-M2-5 本地默认关闭, 4070S 12G 串行铁律
 
+archived-with: 2026-06-21-m2-asr-fallback
 ---
 
 ## Task 1: ASR 统一接口与数据模型 (0.5d)
@@ -41,6 +43,7 @@ base-ref: ec35c7a8d3e7687d99a4cf39728532ea8ba3e802
 - [ ] 工厂函数对 mimo / whisper_local / 未知 provider 三种输入均正确路由
 - [ ] Spec D-M2-2 WHEN 传入正常字段 THEN 返回完整 ASRResult 通过
 
+archived-with: 2026-06-21-m2-asr-fallback
 ---
 
 ## Task 2: mimo-v2.5-asr API 客户端 — 一期 (1d)
@@ -81,6 +84,7 @@ base-ref: ec35c7a8d3e7687d99a4cf39728532ea8ba3e802
 - [ ] Mock MCP: 超时 → ASRError, code="asr_timeout"
 - [ ] D-M2-1: 无直连 mimo API 的 import，所有调用经 openclaw
 
+archived-with: 2026-06-21-m2-asr-fallback
 ---
 
 ## Task 3: 音频预处理 — ffmpeg 抽取 (0.5d)
@@ -111,6 +115,7 @@ base-ref: ec35c7a8d3e7687d99a4cf39728532ea8ba3e802
 - [ ] 不存在文件 → FileNotFoundError
 - [ ] 损坏文件 → ASRError, code="audio_extract_failed"
 
+archived-with: 2026-06-21-m2-asr-fallback
 ---
 
 ## Task 4: 本地 faster-whisper + Belle — 二期 (2d)
@@ -152,6 +157,7 @@ base-ref: ec35c7a8d3e7687d99a4cf39728532ea8ba3e802
 - [ ] Mock: unload() 后 _model 为 None, empty_cache 被调用
 - [ ] D-M2-5: config.example.yaml 默认 provider=mimo，whisper_local 需手动切换
 
+archived-with: 2026-06-21-m2-asr-fallback
 ---
 
 ## Task 5: 调度器 ASR 分支改造 (1d)
@@ -210,6 +216,7 @@ base-ref: ec35c7a8d3e7687d99a4cf39728532ea8ba3e802
 - [ ] 无字幕 + 全部失败 → failed(asr_failed)
 - [ ] download_video_only 返回 subtitle_path=None
 
+archived-with: 2026-06-21-m2-asr-fallback
 ---
 
 ## Task 6: 配置更新 (0.5d)
@@ -247,6 +254,7 @@ base-ref: ec35c7a8d3e7687d99a4cf39728532ea8ba3e802
 - [ ] 默认值 provider=mimo (D-M2-5)
 - [ ] .env.example 包含 MIMO_ASR_MODEL
 
+archived-with: 2026-06-21-m2-asr-fallback
 ---
 
 ## Task 7: 知识文档 + 端到端测试 (1d)
@@ -282,6 +290,7 @@ base-ref: ec35c7a8d3e7687d99a4cf39728532ea8ba3e802
 - [ ] whisper_local 切换后 无字幕视频 → subtitle_source=whisper_local
 - [ ] KNOWLEDGE.md 四章节完整，无 TODO
 
+archived-with: 2026-06-21-m2-asr-fallback
 ---
 
 ## 关键约束检查表

@@ -2,6 +2,8 @@
 comet_change: m2-asr-fallback
 role: technical-design
 canonical_spec: openspec
+archived-with: 2026-06-21-m2-asr-fallback
+status: final
 ---
 
 # M2 ASR 兜底 — 技术设计文档
