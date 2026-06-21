@@ -2,6 +2,7 @@
 
 Spec ref: specs/obsidian-archive-writer/spec.md Requirement: frontmatter schema。
 M1 默认：summary_status=not_run, processing_mode=subtitle_only, ai_summary_model=null。
+M3: 接受 summary_status, processing_mode, ai_summary_model, summary 字段。
 """
 from typing import Any, Dict
 
@@ -20,7 +21,7 @@ class IncompleteFrontmatterError(Exception):
 
 
 def build_frontmatter(data: dict) -> Dict[str, Any]:
-    """构建 frontmatter dict。M1 默认填充 3 状态字段。
+    """构建 frontmatter dict。M1 默认填充 3 状态字段，M3 支持覆盖。
 
     Raises: IncompleteFrontmatterError 当任一 REQUIRED_FIELDS 缺失。
     """
@@ -29,11 +30,11 @@ def build_frontmatter(data: dict) -> Dict[str, Any]:
             raise IncompleteFrontmatterError(f"missing field: {f}")
 
     fm = {f: data[f] for f in REQUIRED_FIELDS}
-    # D-10 状态字段（M1 默认值）
-    fm["summary_status"] = "not_run"
-    fm["processing_mode"] = "subtitle_only"
-    fm["ai_summary_model"] = None
-    # M1 占位字段
-    fm["summary"] = ""
-    fm["vlm_results"] = []
+    # D-10 状态字段（M1 默认值，M3 允许覆盖）
+    fm["summary_status"] = data.get("summary_status", "not_run")
+    fm["processing_mode"] = data.get("processing_mode", "subtitle_only")
+    fm["ai_summary_model"] = data.get("ai_summary_model", None)
+    # M3 字段
+    fm["summary"] = data.get("summary", "")
+    fm["vlm_results"] = data.get("vlm_results", [])
     return fm
