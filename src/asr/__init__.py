@@ -55,25 +55,20 @@ class ASRClient(ABC):
         ...
 
 
-# ── 占位实现（Task 2 / Task 4 实现） ───────────────────────
+# ── 实际实现导入 ─────────────────────────────────────────────
 
 
-class MimoASRClient(ASRClient):
-    """MiMo ASR 客户端 — Task 2 实现。"""
-
-    def transcribe(self, audio_path: Path) -> ASRResult:
-        raise NotImplementedError("MimoASRClient.transcribe 将在 Task 2 实现")
+def _get_mimo_client_class():
+    from src.asr.mimo_client import MimoASRClient
+    return MimoASRClient
 
 
-from src.asr.local_whisper import WhisperLocalClient  # noqa: F401
+def _get_whisper_client_class():
+    from src.asr.local_whisper import WhisperLocalClient
+    return WhisperLocalClient
 
 
 # ── 工厂函数 ───────────────────────────────────────────────
-
-_PROVIDER_MAP: dict[str, type[ASRClient]] = {
-    "mimo": MimoASRClient,
-    "whisper_local": WhisperLocalClient,
-}
 
 
 def get_asr_client(config: dict[str, Any]) -> ASRClient:
@@ -81,6 +76,8 @@ def get_asr_client(config: dict[str, Any]) -> ASRClient:
 
     Args:
         config: 项目配置字典，需含 asr.provider 字段。
+            - provider="mimo" 时读取 mimo.api_key / mimo.base_url
+            - provider="whisper_local" 时读取 whisper.model / whisper.device
 
     Returns:
         对应 provider 的 ASRClient 实例。
@@ -88,8 +85,22 @@ def get_asr_client(config: dict[str, Any]) -> ASRClient:
     Raises:
         ValueError: 未知的 provider。
     """
-    provider = config.get("asr", {}).get("provider", "")
-    cls = _PROVIDER_MAP.get(provider)
-    if cls is None:
+    asr_config = config.get("asr", {})
+    provider = asr_config.get("provider", "")
+
+    if provider == "mimo":
+        cls = _get_mimo_client_class()
+        mimo_cfg = asr_config.get("mimo", {})
+        api_key = mimo_cfg.get("api_key", "")
+        base_url = mimo_cfg.get("base_url", "https://token-plan-cn.xiaomimimo.com/v1")
+        return cls(api_key=api_key, base_url=base_url)
+    elif provider == "whisper_local":
+        cls = _get_whisper_client_class()
+        whisper_cfg = asr_config.get("whisper", {})
+        return cls(
+            model_name=whisper_cfg.get("model", "Belle-whisper-large-v3-turbo-zh"),
+            device=whisper_cfg.get("device", "cuda"),
+            compute_type=whisper_cfg.get("compute_type", "int8_float16"),
+        )
+    else:
         raise ValueError(f"unknown ASR provider: {provider!r}")
-    return cls()

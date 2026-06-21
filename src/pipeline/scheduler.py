@@ -384,14 +384,47 @@ def _run_asr_fallback(
         )
         return None
 
-    # 4. ASR 转写
+    # 4. 分片（mimo-asr 单次 10MB 限制，240秒/片 ≈ 7.5MB）
     try:
-        result = asr_client.transcribe(wav_path)
-        subtitle_source = result.source or "asr"
+        from src.asr.audio_preprocess import split_audio_chunks
+        chunks_dir = tmp_dir / f"{video_id}_chunks"
+        chunks = split_audio_chunks(wav_path, chunks_dir)
+    except Exception as e:
+        _get_logger().error(
+            "audio_split_failed",
+            error=str(e),
+            correlation_id=correlation_id,
+        )
+        return None
+
+    # 5. ASR 转写（逐片转写 + 拼接）
+    try:
+        all_text_parts = []
+        all_segments = []
+        time_offset = 0.0
+
+        for chunk_path in chunks:
+            chunk_result = asr_client.transcribe(chunk_path)
+            all_text_parts.append(chunk_result.text)
+            # 为 segments 加上时间偏移
+            for seg in chunk_result.segments:
+                all_segments.append({
+                    "start": seg.get("start", 0) + time_offset,
+                    "end": seg.get("end", 0) + time_offset,
+                    "text": seg.get("text", ""),
+                })
+            # 计算下一片的时间偏移
+            if chunks.index(chunk_path) < len(chunks) - 1:
+                from src.asr.audio_preprocess import get_audio_duration
+                time_offset += get_audio_duration(chunk_path)
+
+        full_text = " ".join(all_text_parts)
+        subtitle_source = chunks[0] and "mimo_asr"  # 取第一片的 source
         _get_logger().info(
             "asr_transcribe_success",
             video_id=video_id,
             subtitle_source=subtitle_source,
+            chunks=len(chunks),
             correlation_id=correlation_id,
         )
     except ASRError as e:
@@ -402,20 +435,48 @@ def _run_asr_fallback(
         )
         raise
     finally:
-        # 清理 .wav 文件
+        # 清理 .wav 和分片文件
+        for chunk_path in chunks:
+            if chunk_path.exists():
+                try:
+                    chunk_path.unlink()
+                except OSError:
+                    pass
+        if chunks_dir.exists():
+            try:
+                chunks_dir.rmdir()
+            except OSError:
+                pass
         if wav_path.exists():
             try:
                 wav_path.unlink()
             except OSError:
                 pass
 
-    # 5. 将转写结果写入临时 .vtt 文件供后续流程使用
+    # 6. 将转写结果写入临时 .vtt 文件供后续流程使用
     subtitle_path = tmp_dir / f"{video_id}.asr.vtt"
-    subtitle_path.write_text(result.text, encoding="utf-8")
+    # 格式化为简单 VTT（每段一行）
+    vtt_lines = ["WEBVTT", ""]
+    for seg in all_segments:
+        start = seg.get("start", 0)
+        end = seg.get("end", 0)
+        text = seg.get("text", "")
+        vtt_lines.append(f"{_format_time(start)} --> {_format_time(end)}")
+        vtt_lines.append(text)
+        vtt_lines.append("")
+    subtitle_path.write_text("\n".join(vtt_lines), encoding="utf-8")
     dl_result["subtitle_path"] = subtitle_path
-    dl_result["subtitle_source"] = subtitle_source
+    dl_result["subtitle_source"] = "mimo_asr"
 
     return subtitle_source
+
+
+def _format_time(seconds: float) -> str:
+    """秒数格式化为 HH:MM:SS.mmm（VTT 时间戳格式）。"""
+    h = int(seconds // 3600)
+    m = int((seconds % 3600) // 60)
+    s = seconds % 60
+    return f"{h:02d}:{m:02d}:{s:06.3f}"
 
 
 def _handle_task_failure(conn, task_id: int, correlation_id: str, error: Exception) -> None:

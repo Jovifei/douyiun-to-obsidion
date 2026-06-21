@@ -1,3 +1,13 @@
+asr:
+  mimo:
+    api_key: tp-cj98vwm4u01s6fbnm6za21d8zesgk3ft7x34tyr022nhsn97
+    base_url: https://token-plan-cn.xiaomimimo.com/v1
+    model: mimo-v2.5-asr
+  provider: mimo
+  whisper:
+    compute_type: int8_float16
+    device: cuda
+    model: Belle-whisper-large-v3-turbo-zh
 downloader:
   cookies_path: ''
   douk_path: ''
