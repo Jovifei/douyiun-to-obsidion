@@ -1,0 +1,16 @@
+{
+  "change": "m4-robustness-sync",
+  "phase": "design",
+  "mode": "compact",
+  "canonical_spec": "openspec",
+  "generated_by": "comet-handoff.sh",
+  "context_hash": "87df02fd149262f6ccff68be6c5f55f4aa560aec78ec4237c869db18aad8f0e7",
+  "files": [
+    { "path": "openspec/changes/m4-robustness-sync/proposal.md", "sha256": "a7316a79870d11d802fb40c5d7bbde82fdbad8c3fc552c2db0b23fab072a2003" },
+    { "path": "openspec/changes/m4-robustness-sync/design.md", "sha256": "62c3ac57768b46b5375a267cffa2cbcfb8b803058990284d80372cb2a257712f" },
+    { "path": "openspec/changes/m4-robustness-sync/tasks.md", "sha256": "9e99b72db3884d601016ed60c9773fc1d68733c33e167296f6c11deb854c29b9" },
+    { "path": "openspec/changes/m4-robustness-sync/specs/cookie-auto-refresh/spec.md", "sha256": "8a0336d6c4c3e571f6938129fe1c6d361a27096a65fa29950c741307741ee6c7" },
+    { "path": "openspec/changes/m4-robustness-sync/specs/monitor-alerts/spec.md", "sha256": "d18fd6f4aa315cc747b71838c10c84c4bf113baa8e12394f0f8376cce3307725" },
+    { "path": "openspec/changes/m4-robustness-sync/specs/task-queue-pipeline/spec.md", "sha256": "da46bb6bf4838f16b75647a00da26631f1e793332134b5878e1197ade0ca8abc" }
+  ]
+}
