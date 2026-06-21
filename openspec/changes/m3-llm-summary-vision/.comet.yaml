@@ -1,10 +1,10 @@
 workflow: full
-phase: design
+phase: build
 build_mode: null
 isolation: null
 verify_mode: null
 base_ref: 2235930c37cec7d7a7b91b314258e7a32ea3749e
-design_doc: null
+design_doc: docs/superpowers/specs/2026-06-21-m3-llm-summary-vision-design.md
 plan: null
 verify_result: pending
 verification_report: null
@@ -12,3 +12,5 @@ branch_status: pending
 created_at: 2026-06-21
 verified_at: null
 archived: false
+handoff_context: openspec/changes/m3-llm-summary-vision/.comet/handoff/design-context.json
+handoff_hash: c01de7187ad551cab93555bc1ff31f92c40e798bb574558a275c7806359ece36

@@ -1,0 +1,17 @@
+{
+  "change": "m3-llm-summary-vision",
+  "phase": "design",
+  "mode": "compact",
+  "canonical_spec": "openspec",
+  "generated_by": "comet-handoff.sh",
+  "context_hash": "c01de7187ad551cab93555bc1ff31f92c40e798bb574558a275c7806359ece36",
+  "files": [
+    { "path": "openspec/changes/m3-llm-summary-vision/proposal.md", "sha256": "98bf1c73aff9cac9acd939b936284d44e434440b43c55b870521c0359472e5b7" },
+    { "path": "openspec/changes/m3-llm-summary-vision/design.md", "sha256": "63ba514317f95f5d7b6cabd21d9dd2b0cf4f4d6930a371d341d2767fb9dbd5de" },
+    { "path": "openspec/changes/m3-llm-summary-vision/tasks.md", "sha256": "cc88ac1917f96e73ea05b5d51c8c4740fdb99cb2695336169a984888ff726c8e" },
+    { "path": "openspec/changes/m3-llm-summary-vision/specs/llm-summarizer/spec.md", "sha256": "b39324df7a93fd97a5743aabb7d243b433c596186c3e7e4fbc41540f138102f2" },
+    { "path": "openspec/changes/m3-llm-summary-vision/specs/obsidian-archive-writer/spec.md", "sha256": "a627d4b824bc35772e119768003d92035e32c1360528e51692ec352b274b95c8" },
+    { "path": "openspec/changes/m3-llm-summary-vision/specs/task-queue-pipeline/spec.md", "sha256": "a3c72ee143633e871b3e811704e83dca8bc0bb4d96136e0f44bcee6b540bb18e" },
+    { "path": "openspec/changes/m3-llm-summary-vision/specs/video-vision/spec.md", "sha256": "7ff8dd6eeac2514229664a09030b0947f5101816746d77321a8d6f43b4514940" }
+  ]
+}
