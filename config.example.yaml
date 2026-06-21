@@ -25,6 +25,11 @@ llm:
     base_url: "https://token-plan-cn.xiaomimimo.com/v1"
     model: mimo-v2.5-pro
 
+vision:
+  enabled: false               # 默认关闭，手动开启
+  keyframe_max: 30             # 最大关键帧数量
+  scene_threshold: 0.4         # 场景变化检测阈值
+
 asr:
   provider: mimo                # mimo | whisper_local
   mimo:

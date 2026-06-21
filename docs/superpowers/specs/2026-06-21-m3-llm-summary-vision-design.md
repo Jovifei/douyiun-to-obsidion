@@ -2,6 +2,8 @@
 comet_change: m3-llm-summary-vision
 role: technical-design
 canonical_spec: openspec
+archived-with: 2026-06-21-m3-llm-summary-vision
+status: final
 ---
 
 # M3 LLM 总结 + 视觉理解 — 技术设计文档

@@ -327,6 +327,46 @@ def process_task(conn, task: dict, config: dict) -> None:
             if empty_dl_result.get("subtitle_path") and empty_dl_result["subtitle_path"].exists():
                 subtitle_vtt = empty_dl_result["subtitle_path"].read_text(encoding="utf-8")
 
+            # ── M3: LLM 总结（ASR fallback 路径也需调用）──────────────
+            summary_result = None
+            summary_error = None
+            try:
+                summarizer = get_summarizer(config)
+                summary_result = summarizer.summarize(subtitle_vtt, metadata)
+                _get_logger().info(
+                    "llm_summary_success",
+                    task_id=task_id,
+                    model=summary_result.model,
+                    key_points_count=len(summary_result.key_points),
+                    correlation_id=correlation_id,
+                )
+            except LLMError as e:
+                summary_error = e.code
+                _get_logger().warning(
+                    "llm_summary_failed",
+                    task_id=task_id,
+                    error_code=e.code,
+                    correlation_id=correlation_id,
+                )
+            except Exception as e:
+                summary_error = str(e)
+                _get_logger().warning(
+                    "llm_summary_error",
+                    task_id=task_id,
+                    error=str(e),
+                    correlation_id=correlation_id,
+                )
+
+            # 确定 summary_status
+            if summary_result:
+                summary_status = "done"
+                summary_text = summary_result.summary_text
+                ai_summary_model = summary_result.model
+            else:
+                summary_status = "failed"
+                summary_text = ""
+                ai_summary_model = None
+
             frontmatter_data = {
                 "title": metadata.get("title", ""),
                 "video_id": video_id,
@@ -341,10 +381,15 @@ def process_task(conn, task: dict, config: dict) -> None:
                 "local_cover_path": "",
                 "subtitle_source": subtitle_source,
                 "subtitle_language": "zh",
-                "pipeline_version": "m2",
+                "pipeline_version": "m3",
                 "status": "done",
                 "downloader_used": empty_dl_result.get("downloader_used", "yt-dlp"),
                 "correlation_id": correlation_id,
+                # M3 新增字段
+                "summary_status": summary_status,
+                "ai_summary_model": ai_summary_model,
+                "processing_mode": "subtitle_only",
+                "summary": summary_text,
             }
             fm = build_frontmatter(frontmatter_data)
 
@@ -355,6 +400,8 @@ def process_task(conn, task: dict, config: dict) -> None:
                 correlation_id=correlation_id,
                 raw_input=source_url,
                 processing_time_seconds=0,
+                summary_result=summary_result,
+                summary_error=summary_error,
             )
 
             write_note(

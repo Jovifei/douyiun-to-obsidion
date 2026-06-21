@@ -344,12 +344,25 @@ class TestScenario4WhisperLocal:
              patch("src.pipeline.scheduler.download_video_only", return_value=mock_download_only), \
              patch("src.pipeline.scheduler.download_with_douk", side_effect=NoSubtitleError("no_subtitle_in_m1")), \
              patch("src.pipeline.scheduler.get_asr_client", return_value=mock_asr_client), \
-             patch("src.pipeline.scheduler.extract_audio_for_asr") as mock_extract:
+             patch("src.pipeline.scheduler.extract_audio_for_asr") as mock_extract, \
+             patch("src.pipeline.scheduler.get_summarizer") as mock_summarizer_factory:
 
                 def fake_extract(video_path, wav_path):
                     wav_path.write_bytes(b"fake wav")
                     return wav_path
                 mock_extract.side_effect = fake_extract
+
+                # M3: mock summarizer to avoid LLM config dependency
+                from src.llm import SummaryResult
+                mock_summary = SummaryResult(
+                    summary_text="mock summary",
+                    key_points=["mock point"],
+                    model="mock_model",
+                    source="mock",
+                )
+                mock_summarizer = MagicMock()
+                mock_summarizer.summarize.return_value = mock_summary
+                mock_summarizer_factory.return_value = mock_summarizer
 
                 # Enqueue
                 resp = await client.post(
@@ -378,8 +391,8 @@ class TestScenario4WhisperLocal:
                 updated = db.get_task(conn, task_id)
                 assert updated["status"] == "done"
 
-                # Verify: note exists with whisper_local source
+                # Verify: note exists with ASR transcript content
                 note_files = list(vault_root.rglob("600004.md"))
                 assert len(note_files) == 1
                 note_content = note_files[0].read_text(encoding="utf-8")
-                assert "whisper_local" in note_content
+                assert "本地Whisper转写结果" in note_content
