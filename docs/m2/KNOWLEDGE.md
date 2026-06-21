@@ -320,3 +320,54 @@ _RETRYABLE_MESSAGE_PATTERNS = [
 **去重机制**：内存缓存 `_alert_cache: dict[str, float]`，`is_alert_duplicate(alert_key, cooldown_minutes=30)` 检查同一 key 是否在冷却期内。
 
 **告警失败处理**：所有异常被捕获，返回 False，不阻塞主流程。
+
+## 10. M5 多平台支持
+
+### 10.1 PlatformExtractor ABC
+
+统一接口，所有平台 extractor 继承 `PlatformExtractor`：
+
+```python
+class PlatformExtractor(ABC):
+    platform: str
+    def resolve_url(self, raw_url: str) -> dict    # {video_id, canonical_url, platform}
+    def download(self, video_id, canonical_url, out_dir, **kwargs) -> dict
+    def extract_metadata(self, info_dict) -> dict
+    def classify_subtitle(self, info_dict) -> str
+```
+
+工厂注册表：`register_extractor(name, cls)` → `get_extractor(name, config)` 实例化。
+
+### 10.2 已支持平台
+
+| 平台 | 域名 | 短链 | extractor |
+|------|------|------|-----------|
+| 抖音 | douyin.com, iesdouyin.com | v.douyin.com | DouyinExtractor |
+| Bilibili | bilibili.com | b23.tv | BilibiliExtractor |
+| 小红书 | xiaohongshu.com | xhslink.com | XiaohongshuExtractor |
+| YouTube | youtube.com | youtu.be | YouTubeExtractor |
+
+### 10.3 批量 URL 提取
+
+`extract_all_urls(text: str) -> list[str]` 从飞书消息提取所有支持平台 URL。
+
+- 正则匹配 `https?://[^\s]+`
+- 过滤：只保留已识别平台 URL
+- 去重 + 保持首次出现顺序
+
+### 10.4 平台下载策略
+
+| 平台 | 主路径 | 兜底 |
+|------|--------|------|
+| 抖音 | yt-dlp | DouK-Downloader |
+| Bilibili | yt-dlp | 无 |
+| 小红书 | yt-dlp | requests 兜底 |
+| YouTube | yt-dlp | 无 |
+
+### 10.5 小红书双层策略
+
+小红书反爬较强，采用双层策略：
+1. **yt-dlp 优先**：标准下载路径
+2. **requests 兜底**：从页面 SSR 数据提取视频 URL，直接下载
+
+失败时自动降级到 requests 路径。
