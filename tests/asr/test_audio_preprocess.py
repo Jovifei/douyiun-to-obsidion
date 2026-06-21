@@ -44,6 +44,7 @@ class TestExtractAudioNormal:
                     "-y", str(output_file),
                 ],
                 check=True,
+                capture_output=True,
             )
             assert result == output_file
 

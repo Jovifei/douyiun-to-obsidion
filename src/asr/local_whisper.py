@@ -21,8 +21,11 @@ _MODEL_NAME = "Belle/Belle-whisper-large-v3-turbo-zh"
 class WhisperLocalClient(ASRClient):
     """Whisper 本地客户端 — 基于 faster-whisper + Belle 模型。"""
 
-    def __init__(self) -> None:
+    def __init__(self, model_name: str | None = None, device: str = "cuda", compute_type: str = "int8_float16") -> None:
         self._model = None
+        self._model_name = model_name or _MODEL_NAME
+        self._device = device
+        self._compute_type = compute_type
 
     def _get_model(self):
         """懒加载 faster-whisper 模型。
@@ -45,9 +48,9 @@ class WhisperLocalClient(ASRClient):
             raise ImportError("faster_whisper not installed")
 
         self._model = WhisperModel(
-            _MODEL_NAME,
-            device="cuda",
-            compute_type="int8_float16",
+            self._model_name,
+            device=self._device,
+            compute_type=self._compute_type,
         )
         return self._model
 

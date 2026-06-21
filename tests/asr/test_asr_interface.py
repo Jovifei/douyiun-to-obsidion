@@ -76,16 +76,16 @@ class TestGetASRClient:
 
     def test_mimo_provider(self):
         """provider=mimo 返回 MimoASRClient。"""
-        from src.asr import MimoASRClient
+        from src.asr.mimo_client import MimoASRClient
 
-        client = get_asr_client({"asr": {"provider": "mimo"}})
+        client = get_asr_client({"asr": {"provider": "mimo", "mimo": {"api_key": "test"}}})
         assert isinstance(client, MimoASRClient)
 
     def test_whisper_local_provider(self):
         """provider=whisper_local 返回 WhisperLocalClient。"""
-        from src.asr import WhisperLocalClient
+        from src.asr.local_whisper import WhisperLocalClient
 
-        client = get_asr_client({"asr": {"provider": "whisper_local"}})
+        client = get_asr_client({"asr": {"provider": "whisper_local", "whisper": {}}})
         assert isinstance(client, WhisperLocalClient)
 
     def test_unknown_provider_raises(self):
