@@ -46,14 +46,10 @@ class SummarizerClient(ABC):
         ...
 
 
-# ── 占位实现（Task 2 实现） ───────────────────────────────
+# ── 实际实现导入 ─────────────────────────────────────────────
 
 
-class MimoSummarizer(SummarizerClient):
-    """Mimo LLM 总结客户端占位 — Task 2 实现。"""
-
-    def summarize(self, subtitle_text: str, metadata: dict) -> SummaryResult:
-        raise NotImplementedError("Task 2")
+from src.llm.mimo_summarizer import MimoSummarizer  # noqa: E402
 
 
 class LocalSummarizer(SummarizerClient):

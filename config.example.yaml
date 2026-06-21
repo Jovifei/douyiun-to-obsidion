@@ -18,6 +18,13 @@ downloader:
   yt_dlp_retries: 3
   douk_path: ""                 # DouK-Downloader 可执行路径，留空 = 禁用兜底
 
+llm:
+  provider: mimo                # mimo | local
+  mimo:
+    api_key: ""                 # 填写 mimo API key
+    base_url: "https://token-plan-cn.xiaomimimo.com/v1"
+    model: mimo-v2.5-pro
+
 asr:
   provider: mimo                # mimo | whisper_local
   mimo:

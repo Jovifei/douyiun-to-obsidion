@@ -13,6 +13,12 @@ downloader:
   douk_path: ''
   temp_dir: E:\project\douyin_to_obsidian\data\tmp
   yt_dlp_retries: 3
+llm:
+  mimo:
+    api_key: tp-cj98vwm4u01s6fbnm6za21d8zesgk3ft7x34tyr022nhsn97
+    base_url: https://token-plan-cn.xiaomimimo.com/v1
+    model: mimo-v2.5-pro
+  provider: mimo
 git_backup:
   cron_time: 03:00
   remote_url: ''
