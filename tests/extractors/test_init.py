@@ -21,7 +21,7 @@ def test_all_exports():
     """__all__ 包含所有公共 API 符号。"""
     expected = {
         "resolve_url", "ResolverError",
-        "download_video", "classify_subtitle_source", "NoSubtitleError",
+        "download_video", "download_video_only", "classify_subtitle_source", "NoSubtitleError",
         "extract_metadata",
         "extract_audio", "AudioExtractionError",
         "download_with_douk", "DoukNotConfiguredError", "DoukDownloadError",

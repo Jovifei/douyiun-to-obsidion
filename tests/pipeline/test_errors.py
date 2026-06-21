@@ -1,10 +1,11 @@
 """Test src/pipeline/errors.py — ErrorCode 枚举 + classify_exception。
 
-TDD: 4 tests covering:
-4. test_error_code_enum_values — ErrorCode 6 个枚举值正确
+TDD: 5 tests covering:
+4. test_error_code_enum_values — ErrorCode 7 个枚举值正确
 5. test_classify_exception_no_subtitle — NoSubtitleError → NO_SUBTITLE_IN_M1
 6. test_classify_exception_download_failed — DownloadError → DOWNLOAD_FAILED_ALL_TOOLS
 7. test_classify_exception_cookie — "cookie" in error → COOKIE_EXPIRED
+8. test_classify_exception_asr_failed — ASRError → ASR_FAILED
 """
 import pytest
 
@@ -12,7 +13,7 @@ from src.pipeline.errors import ErrorCode, classify_exception
 
 
 class TestErrorCodeEnumValues:
-    """test_error_code_enum_values — ErrorCode 6 个枚举值正确"""
+    """test_error_code_enum_values — ErrorCode 7 个枚举值正确"""
 
     def test_enum_has_all_values(self):
         expected_values = {
@@ -21,10 +22,22 @@ class TestErrorCodeEnumValues:
             "COOKIE_EXPIRED",
             "INCOMPLETE_FRONTMATTER",
             "WRITE_FAILED",
+            "ASR_FAILED",
             "UNKNOWN",
         }
         actual_values = {e.name for e in ErrorCode}
         assert actual_values == expected_values, f"Missing: {expected_values - actual_values}, Extra: {actual_values - expected_values}"
+
+
+class TestClassifyExceptionAsrFailed:
+    """test_classify_exception_asr_failed — ASRError → ASR_FAILED"""
+
+    def test_asr_error(self):
+        from src.asr import ASRError
+
+        error = ASRError("asr_timeout")
+        result = classify_exception(error)
+        assert result == ErrorCode.ASR_FAILED
 
 
 class TestClassifyExceptionNoSubtitle:

@@ -5,6 +5,7 @@ Spec ref: specs/douyin-extraction/spec.md。
 from .douyin_resolver import resolve_url, ResolverError
 from .downloader import (
     download_video,
+    download_video_only,
     classify_subtitle_source,
     NoSubtitleError,
 )
@@ -18,7 +19,7 @@ from .douk_fallback import (
 
 __all__ = [
     "resolve_url", "ResolverError",
-    "download_video", "classify_subtitle_source", "NoSubtitleError",
+    "download_video", "download_video_only", "classify_subtitle_source", "NoSubtitleError",
     "extract_metadata",
     "extract_audio", "AudioExtractionError",
     "download_with_douk", "DoukNotConfiguredError", "DoukDownloadError",

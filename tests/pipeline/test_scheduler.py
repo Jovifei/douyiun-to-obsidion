@@ -132,13 +132,14 @@ class TestRunOnceHappyPath:
 
 
 class TestRunOnceNoSubtitleFails:
-    """test_run_once_no_subtitle_fails — subtitle_source=none → failed + error_code"""
+    """test_run_once_no_subtitle_fails — NoSubtitleError → ASR fallback → failed(asr_failed) when no ASR configured."""
 
     @patch("src.pipeline.scheduler.download_video")
     @patch("src.pipeline.scheduler.resolve_url", return_value={"canonical_url": "https://canonical.url/", "source_url_type": "full", "video_id": "1234567890123"})
     def test_task_status_becomes_failed_no_subtitle(
         self, mock_resolve, mock_download, tmp_path
     ):
+        """M2: NoSubtitleError now triggers ASR fallback. Without ASR config, error_code=asr_failed."""
         from src.extractors.downloader import NoSubtitleError
 
         db_path = tmp_path / "test.sqlite3"
@@ -153,7 +154,8 @@ class TestRunOnceNoSubtitleFails:
 
         task = db.get_task(conn, task_id)
         assert task["status"] == "failed"
-        assert task["error_code"] == "no_subtitle_in_m1"
+        # M2: NoSubtitleError triggers ASR fallback; without ASR config → asr_failed
+        assert task["error_code"] == "asr_failed"
 
 
 # ── Test 3: Download fails → DouK fallback ────────────────────────────────
