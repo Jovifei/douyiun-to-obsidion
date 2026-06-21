@@ -244,3 +244,79 @@ class SummaryResult:
 - 默认：LLM（云端）+ ASR（本地）→ 总显存 ~2.5GB
 - 进阶：LLM + ASR + VLM（串行）→ 峰值显存 ~10.5GB
 - 极限：LLM + ASR + VLM + OCR（串行）→ 峰值显存 ~12.5GB（需关闭其他 GPU 应用）
+
+## 9. M4 健壮性技术参考
+
+### 9.1 Cookie 轮转算法
+
+`probe_and_rotate(cookies_path, backup_dir)` 实现 cookie 过期自动恢复：
+
+```
+输入: 主 cookies 路径, 备份目录
+流程:
+  1. probe_cookie(主cookies) → 有效? → return True
+  2. 遍历 backup_dir/cookies_backup_*.txt（按 mtime 降序）
+  3. probe_cookie(备份文件) → 有效? → shutil.copy2(备份, 主) → return True
+  4. 全部无效 → return False
+```
+
+**probe_cookie() 实现**：
+- 解析 Netscape 格式 `cookies.txt`（tab 分隔：domain, flag, path, secure, expiry, name, value）
+- 用 `httpx.Client.get(test_url, cookies=...)` 做 HTTP 探活
+- 返回 `200 <= status < 300` 则有效
+
+**备份文件命名约定**：`cookies_backup_YYYYMMDD.txt`，按文件修改时间排序（最新优先）。
+
+### 9.2 退避序列设计原理
+
+退避序列 `[0, 5, 30, 120, 600]` 秒，设计考量：
+
+| 退避 | 设计意图 |
+|------|---------|
+| 0s   | 首次重试立即执行（可能是瞬时故障） |
+| 5s   | 短暂等待，应对瞬时限流 |
+| 30s  | 中等等待，应对服务端临时过载 |
+| 120s | 长等待，应对较长时间的服务中断 |
+| 600s | 最长等待（10分钟），应对严重故障 |
+
+**不可重试错误列表**（优先级高于可重试）：
+```python
+_NON_RETRYABLE_MESSAGE_PATTERNS = [
+    "404", "403", "not found", "forbidden",
+]
+```
+
+**可重试错误列表**：
+```python
+_RETRYABLE_MESSAGE_PATTERNS = [
+    "network timeout", "connection reset", "connection refused",
+    "connection aborted", "temporarily unavailable",
+    "service unavailable", "503", "502", "429", "timed out", "timeout",
+]
+```
+
+**判断逻辑**：`is_retryable(error)` 按优先级：异常类型 → 不可重试模式 → 可重试模式 → 默认 False。
+
+### 9.3 飞书 Incoming Webhook 格式
+
+飞书机器人 webhook 使用 interactive card 格式：
+
+```json
+{
+  "msg_type": "interactive",
+  "card": {
+    "header": {
+      "title": {"tag": "plain_text", "content": "告警标题"}
+    },
+    "elements": [
+      {"tag": "markdown", "content": "告警内容（支持 markdown）"}
+    ]
+  }
+}
+```
+
+**发送方式**：`httpx.post(webhook_url, json=payload, timeout=10.0)`
+
+**去重机制**：内存缓存 `_alert_cache: dict[str, float]`，`is_alert_duplicate(alert_key, cooldown_minutes=30)` 检查同一 key 是否在冷却期内。
+
+**告警失败处理**：所有异常被捕获，返回 False，不阻塞主流程。

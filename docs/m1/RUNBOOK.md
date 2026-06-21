@@ -123,7 +123,96 @@ vision:
 | PPT/图表类 | 字幕密度低 + 场景变化高 | LLM 总结 + OCR + VLM |
 | 混合类 | 其他情况 | LLM 总结 + OCR + VLM（保守策略） |
 
-## 5. 故障排查
+## 5. M4 健壮性
+
+### 5.1 Cookie 轮转
+
+服务启动时自动探测 cookie 有效性。若当前 cookie 过期，自动从备份目录轮转。
+
+**配置**：
+```yaml
+downloader:
+  cookies_path: "E:\\project\\douyin_to_obsidian\\cookies.txt"
+```
+
+**备份目录约定**：
+```
+data/
+  cookies/                      # 备份目录（与 cookies.txt 同级）
+    cookies_backup_20260620.txt # 备份文件，按日期命名
+    cookies_backup_20260615.txt
+```
+
+**probe_and_rotate 流程**：
+1. `probe_cookie()` 用 HTTP 请求探测当前 cookies
+2. 若有效 → 直接使用，不轮换
+3. 若过期 → 在 `data/cookies/` 中按修改时间降序逐个探测备份
+4. 找到第一个有效备份 → `shutil.copy2` 覆盖主 cookies 文件
+5. 全部过期 → 日志告警，下载任务标记 `cookie_expired`
+
+**手动轮转**：
+```bash
+# 导出新 cookies 后放入备份目录
+cp new_cookies.txt data/cookies/cookies_backup_$(date +%Y%m%d).txt
+# 重启服务自动轮转
+python -m src.bridge.main
+```
+
+### 5.2 退避重试
+
+下载失败时按指数退避重试，序列 `[0, 5, 30, 120, 600]` 秒。
+
+| 尝试 | 退避 | 累计等待 |
+|------|------|---------|
+| 1    | 0s   | 0s      |
+| 2    | 5s   | 5s      |
+| 3    | 30s  | 35s     |
+| 4    | 120s | 155s    |
+| 5    | 600s | 755s    |
+
+**不可重试错误**（直接跳过退避）：
+- HTTP 403/404（forbidden / not found）
+- `NoSubtitleError`（内容问题，非网络）
+- 消息含 `403`、`404`、`forbidden`、`not found`
+
+**可重试错误**：
+- `TimeoutError`、`OSError`（网络层）
+- 消息含 `timeout`、`502`、`503`、`429`、`connection reset`
+
+退避后若仍失败，尝试 DouK 兜底（需配置 `downloader.douk_path`）。
+
+### 5.3 Sleep-Wake 检测
+
+PC 从睡眠/休眠恢复时，自动检测时钟跳变并触发 zombie 任务回收。
+
+**阈值**：60 秒（`detect_sleep_wake(last_loop_time, threshold=60)`）
+
+**触发条件**：
+- 首次启动（`last_loop_time=None`）→ 触发一次 zombie reclaim
+- `time.time()` 两次调用差 > 60s → 触发 zombie reclaim
+- 正常间隔（< 60s）→ 不触发
+
+**zombie reclaim**：将 `fetching`/`writing` 状态且 `claimed_at` 超时的任务重置为 `pending`。
+
+### 5.4 飞书 Webhook 告警
+
+关键事件通过飞书 incoming webhook 推送，30 分钟内同类型告警去重。
+
+**配置**：
+```yaml
+monitor:
+  enabled: true
+  feishu_webhook_url: "https://open.feishu.cn/open-apis/bot/v2/hook/xxxxxxxx"
+```
+
+**告警事件**：
+- `cookie_expired`：cookie 全部过期，无法轮转
+- `download_failed_all_tools`：yt-dlp + DouK 均失败
+- `asr_failed`：ASR 转写失败
+
+**去重机制**：内存缓存 `{alert_key: last_sent_timestamp}`，同一 `alert_key` 30 分钟内不重复发送。
+
+## 6. 故障排查
 
 | 症状 | 原因 | 处理 |
 |------|------|------|
@@ -136,7 +225,7 @@ vision:
 | `llm_api_error` | LLM API 返回非 200 | 检查 `config.yaml` llm 配置；查看日志 |
 | `empty_summary` | LLM 返回空内容 | 可能 prompt 过长被截断；检查字幕质量 |
 
-## 6. 日志查看
+## 7. 日志查看
 
 ```bash
 # 实时查看日志
