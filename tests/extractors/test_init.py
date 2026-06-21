@@ -25,5 +25,8 @@ def test_all_exports():
         "extract_metadata",
         "extract_audio", "AudioExtractionError",
         "download_with_douk", "DoukNotConfiguredError", "DoukDownloadError",
+        # M5
+        "PlatformExtractor", "get_extractor",
+        "DouyinExtractor", "BilibiliExtractor", "XiaohongshuExtractor", "YouTubeExtractor",
     }
     assert set(extractors_all) == expected
