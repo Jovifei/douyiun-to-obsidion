@@ -39,6 +39,13 @@ asr:
     device: cuda
     compute_type: int8_float16
 
+platforms:
+  enabled:                      # 启用的平台列表
+    - douyin                    # 抖音
+    - bilibili                  # B站
+    - xiaohongshu               # 小红书
+    - youtube                   # YouTube
+
 logging:
   level: "INFO"
   dir: "E:\\project\\douyin_to_obsidian\\logs"
