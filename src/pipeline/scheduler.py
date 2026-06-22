@@ -669,7 +669,7 @@ def run_once(db_path, config: dict) -> None:
 
 
 def run_forever(db_path, config: dict) -> None:
-    """主循环：dequeue → process_task → mark done/failed → cleanup → sleep 5s → 循环。"""
+    """主循环：dequeue → process_task → mark done/failed → cleanup → 自适应 sleep → 循环。"""
     # 配置日志（函数式 API，替代模块顶层 structlog.configure）
     configure_logging(config, module_name="scheduler")
 
@@ -688,13 +688,27 @@ def run_forever(db_path, config: dict) -> None:
     if zombie_count > 0:
         _get_logger().info("zombies_reclaimed", count=zombie_count)
 
+    # 自适应 sleep：队列有任务 → 0.5s；空闲 → 5s
+    idle_sleep = 5.0
+    active_sleep = 0.5
+    last_loop_time = time.time()
+
     try:
         while True:
+            # sleep-wake 检测（D-M4-3）
+            from src.utils.sleep_wake import detect_sleep_wake
+            if detect_sleep_wake(last_loop_time):
+                reclaimed = db.reclaim_zombie_tasks(conn, timeout_minutes=config.get("queue", {}).get("zombie_timeout_minutes", 30))
+                _get_logger().info("sleep_wake_detected", zombies_reclaimed=reclaimed)
+
             task = db.atomic_dequeue(conn)
             if task is None:
-                time.sleep(5)
-                continue
-            process_task(conn, task, config)
+                time.sleep(idle_sleep)
+            else:
+                process_task(conn, task, config)
+                time.sleep(active_sleep)
+
+            last_loop_time = time.time()
     except KeyboardInterrupt:
         _get_logger().info("scheduler_stopped")
     finally:
