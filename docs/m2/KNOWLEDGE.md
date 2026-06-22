@@ -371,3 +371,79 @@ class PlatformExtractor(ABC):
 2. **requests 兜底**：从页面 SSR 数据提取视频 URL，直接下载
 
 失败时自动降级到 requests 路径。
+
+## 11. M6 技术参考
+
+### 11.1 LLM 统一抽象层架构
+
+```
+src/llm/
+  __init__.py          # SummarizerClient ABC + get_summarizer 工厂（M3 向后兼容）
+  client.py            # LLMClient ABC + OpenAICompatibleLLM + OllamaLocalLLM + get_llm_client 工厂
+  mimo_summarizer.py   # MimoSummarizer（旧 M3 实现，保留）
+```
+
+**双层接口**：
+| 接口 | 用途 | 方法 |
+|------|------|------|
+| `SummarizerClient` | M3 字幕总结 | `summarize(text, metadata) -> SummaryResult` |
+| `LLMClient` | M6 通用 LLM 调用 | `chat(messages) -> str` / `chat_json(messages) -> dict` |
+
+**工厂路由**：
+- `get_summarizer(config)` → 按 `llm.provider` 路由（mimo/local）
+- `get_llm_client(config)` → 按 `llm.provider` 路由（openai_compatible/ollama_local）
+
+### 11.2 VLM 统一抽象层架构
+
+```
+src/vision/
+  vlm_client.py              # VLMClient ABC + OllamaVLMClient + CloudVLMClient + get_vlm_client 工厂
+  semantic_frame_selector.py  # select_semantic_frames（语义选帧）
+  heuristic_router.py         # classify_video（启发式分流）
+  keyframe_extractor.py       # extract_keyframes（ffmpeg 场景检测）
+  ocr_client.py               # extract_text_from_image（PaddleOCR）
+```
+
+**VLMClient 接口**：
+```python
+class VLMClient(ABC):
+    def describe_image(self, image_path: Path, prompt: str) -> str: ...
+```
+
+**工厂路由**：
+- `get_vlm_client(config)` → 按 `vision.provider` 路由（ollama/cloud_api）
+- `vision.enabled=false` → 返回 None
+
+### 11.3 语义选帧回退链
+
+```
+select_semantic_frames(asr_segments, llm_client, max_frames, video_duration)
+  │
+  ├─ LLM 可用 + segments 非空 → LLM 语义分析（chat_json）
+  │   ├─ 返回 >=3 帧 → source="semantic" ✓
+  │   └─ 返回 <3 帧 / 异常 → fallback ↓
+  │
+  ├─ segments 非空 → ASR segments 直接抽帧
+  │   └─ source="asr_segment" ✓
+  │
+  └─ 无 segments + video_duration > 0 → 均匀采样（每 10 秒）
+      └─ source="interval" ✓
+```
+
+**prompt 模板**（`SEMANTIC_SELECT_PROMPT`）：
+- 输入：ASR segments 带时间戳文本
+- 输出：JSON 数组 `[{"time_sec": N, "reason": "..."}]`
+- 模型：引用 `llm_ref` 指定的 LLM provider
+
+### 11.4 开源用户三类配置对照表
+
+| 维度 | 默认混合 | 纯本地 | 纯云端 |
+|------|---------|--------|--------|
+| **LLM** | openai_compatible（云端） | ollama_local（qwen2.5:7b） | openai_compatible（云端） |
+| **ASR** | whisper_local（本地 GPU） | whisper_local（本地 GPU） | mimo（云端） |
+| **VLM** | ollama（本地，按需启用） | ollama（qwen2.5-vl:7b） | cloud_api（mimo-v2-omni） |
+| **选帧** | semantic（LLM 分析） | semantic（本地 LLM） | semantic（云端 LLM） |
+| **GPU 需求** | 4070S（ASR ~2.5GB） | 4070S+（ASR+VLM ~10.5GB） | 无 |
+| **API 成本** | LLM 按 token 计费 | 零 | LLM+ASR+VLM 按 token 计费 |
+| **网络依赖** | LLM 需网络 | 无 | 全部需网络 |
+| **推荐场景** | 日常使用 | 隐私敏感/离线 | 无 GPU 环境 |

@@ -234,3 +234,121 @@ Get-Content logs\douyin-*.log -Wait
 # 搜索 ASR 相关日志
 Select-String -Path logs\douyin-*.log -Pattern "asr"
 ```
+
+## 8. M6 本地+云端切换
+
+### 8.1 默认混合配置（推荐）
+
+```yaml
+# config.yaml
+llm:
+  provider: openai_compatible
+  openai_compatible:
+    base_url: "https://token-plan-cn.xiaomimimo.com/v1"
+    model: "mimo-v2.5-pro"
+    api_key_env: "LLM_API_KEY"
+
+asr:
+  provider: whisper_local       # 本地 ASR
+
+vision:
+  enabled: false
+  provider: ollama              # 本地 VLM（需时启用）
+  ollama:
+    model: "qwen2.5-vl:7b"
+    base_url: "http://localhost:11434"
+
+frame_selection:
+  provider: semantic
+  semantic:
+    llm_ref: openai_compatible
+    max_frames: 15
+```
+
+**适用场景**：本地 GPU 做 ASR + 云端 LLM 总结，成本与速度平衡。
+
+### 8.2 纯本地配置
+
+```yaml
+# config.yaml — 零 API 成本，需 4070S+ GPU
+llm:
+  provider: ollama_local
+  ollama_local:
+    model: "qwen2.5:7b"
+    base_url: "http://localhost:11434"
+
+asr:
+  provider: whisper_local
+  whisper:
+    model: Belle-whisper-large-v3-turbo-zh
+    device: cuda
+    compute_type: int8_float16
+
+vision:
+  enabled: true
+  provider: ollama
+  ollama:
+    model: "qwen2.5-vl:7b"
+    base_url: "http://localhost:11434"
+
+frame_selection:
+  provider: semantic
+  semantic:
+    llm_ref: ollama_local
+    max_frames: 15
+```
+
+**前置条件**：Ollama 已安装并拉取 `qwen2.5:7b` + `qwen2.5-vl:7b` 模型。
+
+### 8.3 纯云端配置
+
+```yaml
+# config.yaml — 无 GPU 要求，依赖网络
+llm:
+  provider: openai_compatible
+  openai_compatible:
+    base_url: "https://token-plan-cn.xiaomimimo.com/v1"
+    model: "mimo-v2.5-pro"
+    api_key_env: "LLM_API_KEY"
+
+asr:
+  provider: mimo
+  mimo:
+    model: mimo-v2.5-asr
+
+vision:
+  enabled: true
+  provider: cloud_api
+  cloud_api:
+    base_url: "https://token-plan-cn.xiaomimimo.com/v1"
+    model: "mimo-v2-omni"
+    api_key_env: "VLM_API_KEY"
+
+frame_selection:
+  provider: semantic
+  semantic:
+    llm_ref: openai_compatible
+    max_frames: 15
+```
+
+**前置条件**：`LLM_API_KEY` + `VLM_API_KEY` 环境变量已设置。
+
+### 8.4 语义选帧切换
+
+| provider | 行为 | 适用场景 |
+|----------|------|---------|
+| `semantic` | LLM 分析 ASR segments 选关键帧 | 默认，知识类视频 |
+| `interval` | 每 N 秒均匀采样 | 无 ASR 或 LLM 不可用时 |
+
+**回退链**：LLM 语义选帧 → ASR segments 直接抽帧 → 均匀采样（每 10 秒）
+
+```yaml
+frame_selection:
+  provider: semantic           # 切换为 interval 则走均匀采样
+  semantic:
+    llm_ref: openai_compatible # 引用 llm 配置段
+    max_frames: 15
+    fallback: asr_segments
+  interval:
+    seconds: 10
+```
