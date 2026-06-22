@@ -128,9 +128,9 @@ class TestTruncation:
     def test_short_text_not_truncated(self, mock_post, summarizer):
         mock_post.return_value = _make_api_response('{"key_points":["a","b","c"]}')
 
-        summarizer.summarize("短文本", {})
+        summarizer.summarize("短文本", {"title": "测试视频", "uploader": "测试作者", "duration_seconds": 60})
 
-        sent_content = mock_post.call_args[1]["json"]["messages"][0]["content"]
+        sent_content = mock_post.call_args[1]["json"]["messages"][1]["content"]
         assert "短文本" in sent_content
 
     @patch("src.llm.mimo_summarizer.httpx.post")
@@ -138,9 +138,9 @@ class TestTruncation:
         mock_post.return_value = _make_api_response('{"key_points":["a","b","c"]}')
 
         long_text = "A" * 10000
-        summarizer.summarize(long_text, {})
+        summarizer.summarize(long_text, {"title": "测试", "uploader": "测试", "duration_seconds": 0})
 
-        sent_content = mock_post.call_args[1]["json"]["messages"][0]["content"]
+        sent_content = mock_post.call_args[1]["json"]["messages"][1]["content"]
         # 截断后总长度应远小于 10000
         assert len(sent_content) < 10000
         # 应包含前 4000 和后 4000

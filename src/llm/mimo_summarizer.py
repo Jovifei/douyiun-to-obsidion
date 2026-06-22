@@ -15,22 +15,35 @@ from src.llm import LLMError, SummarizerClient, SummaryResult
 _MAX_TEXT_LEN = 8000
 _HALF = 4000
 
-# ── prompt 模板 (D-M3-4) ────────────────────────────────────────────
+# ── prompt 模板 (D-M3-4，优化版) ──────────────────────────────────────
+
+_PROMPT_SYSTEM = """\
+你是一名知识管理助手，专门从视频字幕中提炼可执行知识。
+输出必须是严格 JSON，不含任何额外文本或 markdown。
+"""
 
 _PROMPT_TEMPLATE = """\
-请根据以下视频字幕文本生成结构化总结。
+请根据以下视频字幕生成结构化笔记。
 
-要求：
-1. 提炼 3-5 个核心要点，按重要性排序
-2. 使用中文输出
-3. 每个要点简洁明了，一句话概括
+视频标题：{title}
+视频作者：{author}
+视频时长：{duration}秒
 
-字幕文本：
+## 要求
+1. 提炼 **3-5 个核心要点**（按重要性排序）
+2. 每个要点必须是**可执行的知识**（不是泛泛而谈的总结）
+3. 每个要点限 30 字以内，一句话概括
+4. 如果字幕内容是教程类，要点必须是"操作步骤"而非"讲解内容"
+5. 如果字幕内容是观点类，要点必须是"核心论点"而非"论据细节"
+6. 使用中文
+
+## 字幕文本
 {subtitle_text}
 
-请以 JSON 格式输出：
+## 输出格式（严格 JSON）
+```json
 {{"key_points": ["要点1", "要点2", "要点3"]}}
-"""
+```"""
 
 
 # ── MimoSummarizer ──────────────────────────────────────────────────
@@ -63,10 +76,15 @@ class MimoSummarizer(SummarizerClient):
         # 截断逻辑
         text = self._truncate(subtitle_text)
 
-        # 构造 prompt
-        prompt = _PROMPT_TEMPLATE.format(subtitle_text=text)
+        # 构造 prompt（带视频元数据上下文）
+        prompt = _PROMPT_TEMPLATE.format(
+            title=metadata.get("title", "未知标题"),
+            author=metadata.get("uploader", "未知作者"),
+            duration=int(metadata.get("duration_seconds", 0)),
+            subtitle_text=text,
+        )
 
-        # 调 mimo-v2.5-pro API
+        # 调 mimo-v2.5-pro API（system prompt + user prompt）
         try:
             resp = httpx.post(
                 f"{self.base_url}/chat/completions",
@@ -76,7 +94,10 @@ class MimoSummarizer(SummarizerClient):
                 },
                 json={
                     "model": "mimo-v2.5-pro",
-                    "messages": [{"role": "user", "content": prompt}],
+                    "messages": [
+                        {"role": "system", "content": _PROMPT_SYSTEM},
+                        {"role": "user", "content": prompt},
+                    ],
                 },
                 timeout=30,
             )
