@@ -1,9 +1,11 @@
-"""关键帧抽取 — M3 Task 3。
+"""关键帧抽取 — 按语音重点位置抽帧（不限帧不限时）。
 
-ffmpeg scene detect 抽关键帧，均匀采样兜底。
+策略：用 ASR segments（来自 faster-whisper 或 mimo-asr）的时间戳，
+在每个 segment 起始点抽一帧。说话人换段 = 重点强调的位置，
+比场景变化检测更智能。
+
 Spec ref: D-M3-2 视觉分层（关键帧→OCR→VLM）
 """
-import json
 import subprocess
 from pathlib import Path
 
@@ -12,103 +14,109 @@ class VisionError(Exception):
     """视觉处理失败。"""
 
 
-def extract_keyframes(
+def extract_keyframes_by_segments(
     video_path: Path,
     output_dir: Path,
-    max_frames: int = 30,
+    asr_segments: list[dict],
 ) -> list[Path]:
-    """从视频抽取关键帧。
+    """按 ASR segments 时间戳从视频抽取关键帧（无上限）。
 
-    1. ffmpeg scene detect (-vf "select='gt(scene,0.4)'" -vsync vframe)
-    2. 若 scene detect 帧 < 3，均匀采样兜底（每 10 秒一帧）
-    3. 最多 max_frames 帧
+    每个 segment 起始点抽一帧，自然地捕获"语音重点"位置。
+    不限帧数，由 4070S 本地推理能力兜底。
 
     Args:
         video_path: 视频文件路径
         output_dir: 输出根目录
-        max_frames: 最大帧数，默认 30
+        asr_segments: ASR segments 列表，每项含 `start` 字段（秒）
 
     Returns:
-        关键帧路径列表
+        关键帧路径列表（按时间顺序）
     """
     video_id = video_path.stem
     keyframes_dir = output_dir / f"{video_id}_keyframes"
     keyframes_dir.mkdir(parents=True, exist_ok=True)
 
-    duration = _get_duration(video_path)
-
-    # Step 1: scene detect
-    frames = _scene_detect(video_path, keyframes_dir)
-
-    # Step 2: 均匀采样兜底
-    if len(frames) < 3 and duration > 0:
-        frames = _uniform_sampling(video_path, keyframes_dir, duration)
-
-    # Step 3: 截断到 max_frames
-    frames = frames[:max_frames]
+    frames: list[Path] = []
+    for i, seg in enumerate(asr_segments):
+        start_sec = seg.get("start", 0.0)
+        frame_path = keyframes_dir / f"emphasis_{i:04d}.jpg"
+        try:
+            _extract_frame(video_path, start_sec, frame_path)
+            if frame_path.exists():
+                frames.append(frame_path)
+        except Exception:
+            continue
 
     return frames
 
 
-def _get_duration(video_path: Path) -> float:
-    """用 ffprobe 获取视频时长（秒）。"""
-    cmd = [
-        "ffprobe",
-        "-v", "quiet",
-        "-print_format", "json",
-        "-show_format",
-        str(video_path),
-    ]
-    try:
-        result = subprocess.run(cmd, check=True, capture_output=True)
-        info = json.loads(result.stdout)
-        return float(info["format"]["duration"])
-    except Exception:
-        return 0.0
-
-
-def _scene_detect(video_path: Path, keyframes_dir: Path) -> list[Path]:
-    """ffmpeg scene detect 抽帧。"""
-    pattern = str(keyframes_dir / "frame_%04d.jpg")
-    cmd = [
-        "ffmpeg", "-y",
-        "-i", str(video_path),
-        "-vf", "select='gt(scene,0.4)'",
-        "-vsync", "vframe",
-        pattern,
-    ]
-    try:
-        subprocess.run(cmd, check=True, capture_output=True)
-    except Exception as e:
-        raise VisionError(f"ffmpeg scene detect failed: {e}") from e
-
-    frames = sorted(keyframes_dir.glob("frame_*.jpg"))
-    return frames
-
-
-def _uniform_sampling(
+def extract_keyframes_fallback(
     video_path: Path,
-    keyframes_dir: Path,
-    duration: float,
+    output_dir: Path,
+    interval_sec: float = 10.0,
 ) -> list[Path]:
-    """每 10 秒一帧的均匀采样兜底。"""
-    # 清除之前 scene detect 的帧（跳过 ffmpeg glob pattern 占位文件）
-    for f in keyframes_dir.glob("frame_*.jpg"):
-        if "%" not in f.name:
-            f.unlink(missing_ok=True)
+    """无 ASR segments 时的兜底：均匀采样（每 N 秒一帧，无上限）。
 
-    pattern = str(keyframes_dir / "uniform_%04d.jpg")
-    # fps = 1/10，每 10 秒取一帧
+    Args:
+        video_path: 视频文件路径
+        output_dir: 输出根目录
+        interval_sec: 采样间隔秒数，默认 10 秒
+    """
+    video_id = video_path.stem
+    keyframes_dir = output_dir / f"{video_id}_keyframes"
+    keyframes_dir.mkdir(parents=True, exist_ok=True)
+
+    pattern = str(keyframes_dir / "fallback_%04d.jpg")
     cmd = [
         "ffmpeg", "-y",
         "-i", str(video_path),
-        "-vf", "fps=1/10",
+        "-vf", f"fps=1/{interval_sec}",
         pattern,
     ]
     try:
         subprocess.run(cmd, check=True, capture_output=True)
     except Exception as e:
-        raise VisionError(f"ffmpeg uniform sampling failed: {e}") from e
+        raise VisionError(f"ffmpeg fallback sampling failed: {e}") from e
 
-    frames = sorted(keyframes_dir.glob("uniform_*.jpg"))
+    return sorted(keyframes_dir.glob("fallback_*.jpg"))
+
+
+def _extract_frame(video_path: Path, time_sec: float, output_path: Path) -> None:
+    """从视频指定时间点抽一帧。"""
+    cmd = [
+        "ffmpeg", "-y",
+        "-ss", str(time_sec),
+        "-i", str(video_path),
+        "-frames:v", "1",
+        "-q:v", "2",
+        str(output_path),
+    ]
+    try:
+        subprocess.run(cmd, check=True, capture_output=True)
+    except Exception as e:
+        raise VisionError(f"ffmpeg frame extraction failed at {time_sec}s: {e}") from e
+
+
+def extract_keyframes(
+    video_path: Path,
+    output_dir: Path,
+    asr_segments: list[dict] | None = None,
+    max_frames: int | None = None,
+) -> list[Path]:
+    """统一入口：有 ASR segments 用语音重点抽帧，否则均匀采样兜底。
+
+    Args:
+        video_path: 视频文件路径
+        output_dir: 输出根目录
+        asr_segments: ASR segments 列表（含 start 字段）。None 时走 fallback。
+        max_frames: 最大帧数限制，默认 None（不限帧）
+    """
+    if asr_segments:
+        frames = extract_keyframes_by_segments(video_path, output_dir, asr_segments)
+    else:
+        frames = extract_keyframes_fallback(video_path, output_dir)
+
+    if max_frames is not None:
+        frames = frames[:max_frames]
+
     return frames
