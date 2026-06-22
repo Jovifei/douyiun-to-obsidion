@@ -1,14 +1,13 @@
-"""MimoSummarizer — M3 Task 2。
+"""MimoSummarizer — M3 Task 2 + M6 Task 1。
 
 通过 mimo-v2.5-pro API 生成 3-5 要点总结。
-API 格式：chat/completions + messages。
+M6: 改用 OpenAICompatibleLLM 统一客户端。
 """
 import json
 import re
 
-import httpx
-
 from src.llm import LLMError, SummarizerClient, SummaryResult
+from src.llm.client import OpenAICompatibleLLM
 
 # ── 截断阈值 ────────────────────────────────────────────────────────
 
@@ -50,7 +49,7 @@ _PROMPT_TEMPLATE = """\
 
 
 class MimoSummarizer(SummarizerClient):
-    """MiMo LLM 总结客户端 — 直接调 mimo-v2.5-pro API。"""
+    """MiMo LLM 总结客户端 — 通过 OpenAICompatibleLLM 调 mimo-v2.5-pro API。"""
 
     def __init__(
         self,
@@ -59,6 +58,11 @@ class MimoSummarizer(SummarizerClient):
     ):
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
+        self._client = OpenAICompatibleLLM(
+            base_url=self.base_url,
+            api_key=self.api_key,
+            default_model="mimo-v2.5-pro",
+        )
 
     def summarize(self, subtitle_text: str, metadata: dict) -> SummaryResult:
         """总结字幕文本并返回 SummaryResult。
@@ -84,32 +88,20 @@ class MimoSummarizer(SummarizerClient):
             subtitle_text=text,
         )
 
-        # 调 mimo-v2.5-pro API（system prompt + user prompt）
+        # 调 mimo-v2.5-pro API（通过 OpenAICompatibleLLM）
+        messages = [
+            {"role": "system", "content": _PROMPT_SYSTEM},
+            {"role": "user", "content": prompt},
+        ]
+
         try:
-            resp = httpx.post(
-                f"{self.base_url}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": "mimo-v2.5-pro",
-                    "messages": [
-                        {"role": "system", "content": _PROMPT_SYSTEM},
-                        {"role": "user", "content": prompt},
-                    ],
-                },
-                timeout=30,
-            )
-        except httpx.TimeoutException:
-            raise LLMError("llm_timeout")
-        except httpx.RequestError as e:
+            from src.llm.client import LLMClientError
+
+            content = self._client.chat(messages)
+        except LLMClientError as e:
+            if "超时" in e.message:
+                raise LLMError("llm_timeout")
             raise LLMError("llm_network_error", str(e))
-
-        if resp.status_code != 200:
-            raise LLMError("llm_api_error", f"{resp.status_code}: {resp.text[:200]}")
-
-        content = resp.json().get("choices", [{}])[0].get("message", {}).get("content", "")
 
         if not content or not content.strip():
             raise LLMError("empty_summary")

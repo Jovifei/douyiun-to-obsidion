@@ -1,11 +1,19 @@
-"""LLM 总结统一接口 — M3 Task 1。
+"""LLM 统一接口 — M3 Task 1 + M6 Task 1。
 
 定义 SummaryResult、SummarizerClient ABC 及 get_summarizer 工厂函数，
-为后续 MimoSummarizer / LocalSummarizer 实现提供契约。
+LLMClient ABC、OpenAICompatibleLLM、OllamaLocalLLM 及 get_llm_client 工厂。
 """
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any
+
+from src.llm.client import (  # noqa: F401
+    LLMClient,
+    LLMClientError,
+    OllamaLocalLLM,
+    OpenAICompatibleLLM,
+    get_llm_client,
+)
 
 
 # ── LLMError ──────────────────────────────────────────────
