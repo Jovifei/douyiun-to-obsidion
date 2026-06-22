@@ -22,10 +22,12 @@ from src.extractors import (
 from src.asr import get_asr_client, ASRError
 from src.asr.audio_preprocess import extract_audio_for_asr
 from src.llm import get_summarizer, LLMError, SummaryResult
+from src.llm.client import get_llm_client, LLMClientError
 from src.vision.heuristic_router import classify_video, RoutingDecision
 from src.vision.keyframe_extractor import extract_keyframes
 from src.vision.ocr_client import extract_text_from_image
-from src.vision.vlm_client import describe_image
+from src.vision.vlm_client import get_vlm_client, VLMClientError, describe_image
+from src.vision.semantic_frame_selector import select_semantic_frames
 from src.obsidian.frontmatter import build_frontmatter
 from src.obsidian.note_builder import build_note_body
 from src.obsidian.writer import write_note
@@ -170,11 +172,15 @@ def process_task(conn, task: dict, config: dict) -> None:
                             if text:
                                 ocr_texts.append(text)
 
+                        vlm_client = get_vlm_client(config)
                         vlm_descriptions = []
-                        for kf in keyframes:
-                            desc = describe_image(kf)
-                            if desc:
-                                vlm_descriptions.append(desc)
+                        if vlm_client is not None:
+                            for kf in keyframes:
+                                desc = vlm_client.describe_image(kf, "描述画面关键信息")
+                                if desc:
+                                    vlm_descriptions.append(desc)
+                        else:
+                            vlm_descriptions.append("VLM 未启用")
 
                         vlm_result = "; ".join(vlm_descriptions) if vlm_descriptions else None
 

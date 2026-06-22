@@ -364,7 +364,7 @@ class TestVisionEnabledSummaryWithVLM:
              patch("src.pipeline.scheduler.classify_video", return_value=RoutingDecision.SUMMARY_WITH_VLM), \
              patch("src.pipeline.scheduler.extract_keyframes") as mock_extract, \
              patch("src.pipeline.scheduler.extract_text_from_image", return_value="OCR 文字内容"), \
-             patch("src.pipeline.scheduler.describe_image", return_value="PPT 展示了流程图"):
+             patch("src.pipeline.scheduler.get_vlm_client") as mock_get_vlm:
             mock_summarizer = MagicMock()
             mock_summarizer.summarize.return_value = SummaryResult(
                 summary_text="总结", key_points=["要点1"], model="mimo-v2.5-pro",
@@ -372,6 +372,9 @@ class TestVisionEnabledSummaryWithVLM:
             )
             mock_get_summarizer.return_value = mock_summarizer
             mock_extract.return_value = [Path("/tmp/frame1.jpg")]
+            mock_vlm_client = MagicMock()
+            mock_vlm_client.describe_image.return_value = "PPT 展示了流程图"
+            mock_get_vlm.return_value = mock_vlm_client
 
             from src.pipeline.scheduler import run_once
             run_once(db_path, config)
@@ -499,11 +502,14 @@ class TestLLMVLMSerial:
             call_order.append("vlm")
             return "PPT 描述"
 
+        mock_vlm_client = MagicMock()
+        mock_vlm_client.describe_image.side_effect = track_vlm_call
+
         with patch("src.pipeline.scheduler.get_summarizer") as mock_get_summarizer, \
              patch("src.pipeline.scheduler.classify_video", return_value=RoutingDecision.SUMMARY_WITH_VLM), \
              patch("src.pipeline.scheduler.extract_keyframes") as mock_extract, \
              patch("src.pipeline.scheduler.extract_text_from_image", return_value="OCR"), \
-             patch("src.pipeline.scheduler.describe_image", side_effect=track_vlm_call):
+             patch("src.pipeline.scheduler.get_vlm_client", return_value=mock_vlm_client):
             mock_summarizer = MagicMock()
             mock_summarizer.summarize.side_effect = track_llm_call
             mock_get_summarizer.return_value = mock_summarizer

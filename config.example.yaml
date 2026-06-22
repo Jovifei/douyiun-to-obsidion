@@ -19,16 +19,36 @@ downloader:
   douk_path: ""                 # DouK-Downloader 可执行路径，留空 = 禁用兜底
 
 llm:
-  provider: mimo                # mimo | local
-  mimo:
-    api_key: ""                 # 填写 mimo API key
+  provider: openai_compatible   # openai_compatible | ollama_local
+  openai_compatible:
     base_url: "https://token-plan-cn.xiaomimimo.com/v1"
-    model: mimo-v2.5-pro
+    model: "mimo-v2.5-pro"
+    api_key_env: "LLM_API_KEY"
+  ollama_local:
+    model: "qwen2.5:7b"
+    base_url: "http://localhost:11434"
 
 vision:
   enabled: false               # 默认关闭，手动开启
+  provider: ollama              # ollama | cloud_api
+  ollama:
+    model: "qwen2.5-vl:7b"
+    base_url: "http://localhost:11434"
+  cloud_api:
+    base_url: "https://token-plan-cn.xiaomimimo.com/v1"
+    model: "mimo-v2-omni"
+    api_key_env: "VLM_API_KEY"
   keyframe_max: 30             # 最大关键帧数量
   scene_threshold: 0.4         # 场景变化检测阈值
+
+frame_selection:
+  provider: semantic           # semantic | interval
+  semantic:
+    llm_ref: openai_compatible
+    max_frames: 15
+    fallback: asr_segments
+  interval:
+    seconds: 10
 
 asr:
   provider: mimo                # mimo | whisper_local
