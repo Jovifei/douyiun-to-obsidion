@@ -9,20 +9,29 @@ asr:
     device: cuda
     model: Belle-whisper-large-v3-turbo-zh
 downloader:
-  cookies_path: ''
+  cookies_path: E:\project\douyin_to_obsidian\cookies.txt
   douk_path: ''
   temp_dir: E:\project\douyin_to_obsidian\data\tmp
   yt_dlp_retries: 3
-llm:
-  mimo:
-    api_key: tp-cj98vwm4u01s6fbnm6za21d8zesgk3ft7x34tyr022nhsn97
-    base_url: https://token-plan-cn.xiaomimimo.com/v1
-    model: mimo-v2.5-pro
-  provider: mimo
+frame_selection:
+  provider: semantic
+  semantic:
+    fallback: asr_segments
+    llm_ref: openai_compatible
+    max_frames: 15
 git_backup:
   cron_time: 03:00
   remote_url: ''
   vault_root: E:\AI_Tools\Obsidian\data\notes-personal
+llm:
+  ollama_local:
+    base_url: http://localhost:11434
+    model: qwen2.5:7b
+  openai_compatible:
+    api_key_env: LLM_API_KEY
+    base_url: https://token-plan-cn.xiaomimimo.com/v1
+    model: mimo-v2.5-pro
+  provider: openai_compatible
 logging:
   dir: E:\project\douyin_to_obsidian\logs
   level: INFO
@@ -37,3 +46,9 @@ vault:
   attachments_subdir: attachments/douyin
   inbox_subdir: inbox/douyin
   root: E:\AI_Tools\Obsidian\data\notes-personal
+vision:
+  enabled: true
+  ollama:
+    base_url: http://localhost:11434
+    model: qwen2.5vl:7b
+  provider: ollama
